@@ -9,10 +9,6 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, Loader2, ChevronLeft, Save, Clock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { Editor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import CharacterCount from '@tiptap/extension-character-count';
 import { useDebounce } from 'use-debounce';
 import {
   Select,
@@ -27,6 +23,7 @@ import {
   Badge,
   BadgeProps
 } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Category {
   id: string;
@@ -53,6 +50,14 @@ interface JournalEntryFormProps {
 
 const AUTOSAVE_DELAY = 2000; // 2 seconds
 
+function calculateWordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+}
+
+function calculateReadingTime(wordCount: number): number {
+  return Math.ceil(wordCount / 200); // Assuming average reading speed of 200 words per minute
+}
+
 export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryFormProps) {
   const [formData, setFormData] = useState<JournalEntry>({
     id: entry?.id || entryId,
@@ -66,27 +71,18 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [editor] = useState(() =>
-    new Editor({
-      extensions: [
-        StarterKit,
-        Placeholder.configure({
-          placeholder: 'Write about your day, thoughts, or experiences...',
-        }),
-        CharacterCount.configure({
-          limit: 10000,
-        }),
-      ],
-      content: entry?.content || '',
-      onUpdate: ({ editor }) => {
-        const content = editor.getHTML();
-        setFormData(prev => ({ ...prev, content }));
-      },
-    })
-  );
-  
+  const [wordCount, setWordCount] = useState(0);
+  const [readingTime, setReadingTime] = useState(0);
+
   const router = useRouter();
   const [debouncedFormData] = useDebounce(formData, AUTOSAVE_DELAY);
+
+  // Update word count and reading time when content changes
+  useEffect(() => {
+    const words = calculateWordCount(formData.content);
+    setWordCount(words);
+    setReadingTime(calculateReadingTime(words));
+  }, [formData.content]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -144,7 +140,6 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
           content: data.content,
           categoryIds: data.categories?.map((c: Category) => c.id) || [],
         });
-        editor.commands.setContent(data.content);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
         toast.error('Failed to load journal entry');
@@ -154,7 +149,7 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
     };
 
     fetchEntry();
-  }, [entryId, entry, editor]);
+  }, [entryId, entry]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -235,15 +230,23 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
           );
         }
 
-        const data = await response.json();
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.message || `Failed to ${isEditing ? 'update' : 'create'} journal entry`);
+        }
+
         toast.success(`Journal entry ${isEditing ? 'updated' : 'created'} successfully`);
         
         if (!isEditing) {
-          router.push(`/journal/${data.id}`);
+          // Wait a moment for the toast to be visible
+          setTimeout(() => {
+            router.push(`/journal/${result.data.id}`);
+          }, 500);
         } else {
           setFormData(prev => ({
             ...prev,
-            ...data
+            ...result.data
           }));
           setLastSaved(new Date());
         }
@@ -276,6 +279,11 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
   }
 
   const selectedCategories = categories.filter(cat => formData.categoryIds.includes(cat.id));
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const content = e.target.value;
+    setFormData(prev => ({ ...prev, content }));
+  };
 
   return (
     <Card>
@@ -388,21 +396,32 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
 
           <div className="space-y-2">
             <Label>Content</Label>
-            <div className="min-h-[200px] rounded-md border border-input bg-background px-3 py-2">
-              <EditorContent editor={editor} />
-            </div>
-            <div className="flex justify-between text-sm text-gray-500">
-              <div>
-                {editor.storage.characterCount.characters()} characters
-                {' • '}
-                {editor.storage.characterCount.words()} words
-              </div>
-              {lastSaved && (
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Last saved: {lastSaved.toLocaleTimeString()}
+            <div className="relative">
+              <Textarea
+                value={formData.content}
+                onChange={handleContentChange}
+                placeholder="Write about your day, thoughts, or experiences..."
+                className="min-h-[200px] resize-none"
+                style={{ 
+                  lineHeight: '1.6',
+                  padding: '1rem',
+                }}
+              />
+              <div className="flex justify-between text-sm text-gray-500 mt-2">
+                <div>
+                  {formData.content.length} characters
+                  {' • '}
+                  {wordCount} words
+                  {' • '}
+                  {readingTime} min read
                 </div>
-              )}
+                {lastSaved && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Last saved: {lastSaved.toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
