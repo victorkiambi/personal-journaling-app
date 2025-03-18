@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { compare } from 'bcrypt';
+import { compare } from 'bcryptjs';
 import { signJWT } from '@/lib/jwt';
 
 const prisma = new PrismaClient();
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         id: true,
         email: true,
         name: true,
-        passwordHash: true,
+        password: true,
       },
     });
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const passwordMatch = await compare(password, user.passwordHash);
+    const passwordMatch = await compare(password, user.password);
     
     if (!passwordMatch) {
       return NextResponse.json(
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
       name: user.name
     });
 
-    // Return token and user data (excluding passwordHash)
-    const { passwordHash, ...userData } = user;
+    // Return token and user data (excluding password)
+    const { password: _, ...userData } = user;
     return NextResponse.json({
       token,
       user: userData

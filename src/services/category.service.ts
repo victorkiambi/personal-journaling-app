@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CategoryData } from '@/types';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export class CategoryService {
   static async createCategory(userId: string, data: CategoryData) {
@@ -20,13 +19,10 @@ export class CategoryService {
       data: {
         userId,
         name: data.name,
-        color: data.color,
-        description: data.description,
-        parentId: data.parentId
+        color: data.color
       },
       include: {
-        parent: true,
-        children: true
+        entries: true
       }
     });
 
@@ -63,13 +59,10 @@ export class CategoryService {
       where: { id: categoryId },
       data: {
         name: data.name,
-        color: data.color,
-        description: data.description,
-        parentId: data.parentId
+        color: data.color
       },
       include: {
-        parent: true,
-        children: true
+        entries: true
       }
     });
 
@@ -100,8 +93,6 @@ export class CategoryService {
         userId
       },
       include: {
-        parent: true,
-        children: true,
         entries: {
           include: {
             metadata: true
@@ -121,8 +112,7 @@ export class CategoryService {
     const categories = await prisma.category.findMany({
       where: { userId },
       include: {
-        parent: true,
-        children: true,
+        entries: true,
         _count: {
           select: { entries: true }
         }

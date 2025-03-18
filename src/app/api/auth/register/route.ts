@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { hash } from 'bcrypt';
+import { hash } from 'bcryptjs';
 import { signJWT } from '@/lib/jwt';
 
 const prisma = new PrismaClient();
@@ -38,14 +38,19 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         email,
-        passwordHash: hashedPassword,
-        preferences: {
+        password: hashedPassword,
+        settings: {
           create: {
             theme: 'light',
             emailNotifications: true,
-          },
-        },
+          }
+        }
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      }
     });
 
     // Generate JWT token
@@ -58,11 +63,7 @@ export async function POST(request: NextRequest) {
     // Return token and user data
     return NextResponse.json({
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name
-      }
+      user
     });
   } catch (error) {
     console.error('Registration error:', error);

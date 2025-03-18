@@ -55,8 +55,26 @@ export default function JournalEntryPage() {
           throw new Error('Failed to fetch journal entry');
         }
 
-        const data = await response.json();
-        setEntry(data);
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to fetch journal entry');
+        }
+
+        const data = result.data;
+        // Transform the data to match the expected format
+        setEntry({
+          id: data.id,
+          title: data.title,
+          content: data.content,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          category: data.categories[0] || {
+            id: 'default',
+            name: 'Uncategorized',
+            color: '#808080'
+          }
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {

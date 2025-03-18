@@ -8,7 +8,8 @@ async function main() {
   await prisma.entryMetadata.deleteMany();
   await prisma.journalEntry.deleteMany();
   await prisma.category.deleteMany();
-  await prisma.userPreferences.deleteMany();
+  await prisma.settings.deleteMany();
+  await prisma.profile.deleteMany();
   await prisma.user.deleteMany();
 
   // Create test users
@@ -16,13 +17,22 @@ async function main() {
     prisma.user.create({
       data: {
         email: 'john@example.com',
-        passwordHash: await bcrypt.hash('password123', 10),
         name: 'John Doe',
-        preferences: {
+        password: await bcrypt.hash('password123', 10),
+        settings: {
           create: {
             theme: 'light',
-            fontSize: 16,
-            emailNotifications: true
+            emailNotifications: true,
+            reminderTime: new Date(new Date().setHours(9, 0, 0, 0)), // 9 AM reminder
+          }
+        },
+        profile: {
+          create: {
+            bio: 'Software engineer and outdoor enthusiast',
+            birthdate: new Date('1990-01-15'),
+            location: 'San Francisco, CA',
+            occupation: 'Software Engineer',
+            interests: ['hiking', 'coding', 'photography']
           }
         }
       }
@@ -30,13 +40,22 @@ async function main() {
     prisma.user.create({
       data: {
         email: 'jane@example.com',
-        passwordHash: await bcrypt.hash('password123', 10),
         name: 'Jane Smith',
-        preferences: {
+        password: await bcrypt.hash('password123', 10),
+        settings: {
           create: {
             theme: 'dark',
-            fontSize: 18,
-            emailNotifications: false
+            emailNotifications: false,
+            reminderTime: new Date(new Date().setHours(20, 0, 0, 0)), // 8 PM reminder
+          }
+        },
+        profile: {
+          create: {
+            bio: 'Fitness enthusiast and lifelong learner',
+            birthdate: new Date('1992-06-23'),
+            location: 'New York, NY',
+            occupation: 'Personal Trainer',
+            interests: ['fitness', 'nutrition', 'reading']
           }
         }
       }
@@ -52,7 +71,6 @@ async function main() {
         userId: john.id,
         name: 'Personal',
         color: '#FF5733',
-        description: 'Personal thoughts and reflections'
       }
     }),
     prisma.category.create({
@@ -60,7 +78,6 @@ async function main() {
         userId: john.id,
         name: 'Work',
         color: '#33FF57',
-        description: 'Work-related entries'
       }
     }),
     prisma.category.create({
@@ -68,7 +85,6 @@ async function main() {
         userId: john.id,
         name: 'Travel',
         color: '#3357FF',
-        description: 'Travel experiences and memories'
       }
     })
   ]);
@@ -80,7 +96,6 @@ async function main() {
         userId: jane.id,
         name: 'Fitness',
         color: '#FF33A8',
-        description: 'Workout and health tracking'
       }
     }),
     prisma.category.create({
@@ -88,7 +103,6 @@ async function main() {
         userId: jane.id,
         name: 'Learning',
         color: '#33FFF5',
-        description: 'Study notes and learnings'
       }
     })
   ]);
@@ -100,15 +114,13 @@ async function main() {
         userId: john.id,
         title: 'First Day at Work',
         content: 'Today was my first day at the new job. The team seems great, and I\'m excited about the projects ahead. Met with my manager and got a tour of the office. Looking forward to making meaningful contributions.',
-        isPublic: false,
         categories: {
           connect: [{ id: johnCategories[1].id }] // Work category
         },
         metadata: {
           create: {
             wordCount: 37,
-            readingTime: 1,
-            sentimentScore: 0.8
+            readingTime: 1
           }
         }
       }
@@ -118,19 +130,13 @@ async function main() {
         userId: john.id,
         title: 'Weekend Trip to the Mountains',
         content: 'Spent the weekend hiking in the mountains. The views were breathtaking, and the fresh air was exactly what I needed. Reached the summit after a challenging 4-hour hike. Made some great memories and took plenty of photos.',
-        isPublic: true,
         categories: {
           connect: [{ id: johnCategories[2].id }] // Travel category
         },
         metadata: {
           create: {
             wordCount: 42,
-            readingTime: 1,
-            sentimentScore: 0.9,
-            location: {
-              latitude: 45.5231,
-              longitude: -122.6765
-            }
+            readingTime: 1
           }
         }
       }
@@ -144,15 +150,13 @@ async function main() {
         userId: jane.id,
         title: 'New Personal Best',
         content: 'Hit a new personal best in deadlifts today! Finally reached 225 lbs after months of training. The consistency is paying off, and I\'m feeling stronger than ever. Need to focus on form for the next few weeks.',
-        isPublic: false,
         categories: {
           connect: [{ id: janeCategories[0].id }] // Fitness category
         },
         metadata: {
           create: {
             wordCount: 39,
-            readingTime: 1,
-            sentimentScore: 0.95
+            readingTime: 1
           }
         }
       }
@@ -162,15 +166,13 @@ async function main() {
         userId: jane.id,
         title: 'TypeScript Course Progress',
         content: 'Completed the advanced TypeScript course today. The sections on generics and utility types were particularly enlightening. Starting to see how powerful the type system can be. Next up: diving into design patterns.',
-        isPublic: true,
         categories: {
           connect: [{ id: janeCategories[1].id }] // Learning category
         },
         metadata: {
           create: {
             wordCount: 35,
-            readingTime: 1,
-            sentimentScore: 0.7
+            readingTime: 1
           }
         }
       }

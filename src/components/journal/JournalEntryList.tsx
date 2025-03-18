@@ -15,11 +15,31 @@ interface JournalEntry {
   content: string;
   createdAt: string;
   updatedAt: string;
-  category: {
+  categories: Array<{
     id: string;
     name: string;
     color: string;
+  }>;
+  metadata?: {
+    wordCount: number;
+    readingTime: number;
   };
+}
+
+interface PaginatedResponse {
+  entries: JournalEntry[];
+  pagination: {
+    total: number;
+    pages: number;
+    page: number;
+    limit: number;
+  };
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
 }
 
 export function JournalEntryList() {
@@ -28,12 +48,14 @@ export function JournalEntryList() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [categories, setCategories] = useState<Array<{id: string, name: string, color: string}>>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('/api/categories', {
+        const response = await fetch('/api/v1/categories', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -44,9 +66,10 @@ export function JournalEntryList() {
         }
 
         const data = await response.json();
-        setCategories(data);
+        setCategories(data.data || []); // Handle the success wrapper from the categories API
       } catch (err) {
         console.error('Error fetching categories:', err);
+        toast.error('Failed to load categories');
       }
     };
 
@@ -57,10 +80,10 @@ export function JournalEntryList() {
     const fetchEntries = async () => {
       try {
         const token = localStorage.getItem('token');
-        let url = '/api/journal';
+        let url = `/api/journal?page=${currentPage}&limit=10`;
         
         if (selectedCategory) {
-          url += `?categoryId=${selectedCategory}`;
+          url += `&categoryId=${selectedCategory}`;
         }
         
         const response = await fetch(url, {
@@ -73,17 +96,24 @@ export function JournalEntryList() {
           throw new Error('Failed to fetch journal entries');
         }
 
-        const data = await response.json();
-        setEntries(data);
+        const result: ApiResponse<PaginatedResponse> = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to fetch journal entries');
+        }
+
+        setEntries(result.data.entries);
+        setTotalPages(result.data.pagination.pages);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
+        toast.error('Failed to load journal entries');
       } finally {
         setLoading(false);
       }
     };
 
     fetchEntries();
-  }, [selectedCategory]);
+  }, [selectedCategory, currentPage]);
 
   const handleDeleteEntry = async (id: string) => {
     if (!confirm('Are you sure you want to delete this journal entry?')) {
@@ -101,6 +131,12 @@ export function JournalEntryList() {
 
       if (!response.ok) {
         throw new Error('Failed to delete journal entry');
+      }
+
+      const result: ApiResponse<void> = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete journal entry');
       }
 
       setEntries(entries.filter(entry => entry.id !== id));
@@ -152,7 +188,10 @@ export function JournalEntryList() {
           <Button 
             variant={selectedCategory === null ? "default" : "outline"}
             size="sm"
-            onClick={() => setSelectedCategory(null)}
+            onClick={() => {
+              setSelectedCategory(null);
+              setCurrentPage(1);
+            }}
           >
             All Entries
           </Button>
@@ -161,7 +200,10 @@ export function JournalEntryList() {
               key={category.id}
               variant={selectedCategory === category.id ? "default" : "outline"}
               size="sm"
-              onClick={() => setSelectedCategory(category.id)}
+              onClick={() => {
+                setSelectedCategory(category.id);
+                setCurrentPage(1);
+              }}
               className="flex items-center gap-2"
             >
               <span 
@@ -208,16 +250,19 @@ export function JournalEntryList() {
               <CardHeader className="pb-3 flex flex-row justify-between items-start">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <span
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      style={{
-                        backgroundColor: `${entry.category.color}20`,
-                        color: entry.category.color,
-                      }}
-                    >
-                      <Tag className="h-3 w-3 mr-1" />
-                      {entry.category.name}
-                    </span>
+                    {entry.categories.map(category => (
+                      <span
+                        key={category.id}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: `${category.color}20`,
+                          color: category.color,
+                        }}
+                      >
+                        <Tag className="h-3 w-3 mr-1" />
+                        {category.name}
+                      </span>
+                    ))}
                     <time className="text-xs text-gray-500">
                       {formatDate(entry.createdAt)}
                     </time>
@@ -271,6 +316,29 @@ export function JournalEntryList() {
               </CardFooter>
             </Card>
           ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
 

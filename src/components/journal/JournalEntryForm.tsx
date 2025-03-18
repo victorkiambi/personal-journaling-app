@@ -1,16 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Loader2, ChevronLeft, Save } from 'lucide-react';
+import { AlertCircle, Loader2, ChevronLeft, Save, Clock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { Editor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import CharacterCount from '@tiptap/extension-character-count';
+import { useDebounce } from 'use-debounce';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Badge,
+  BadgeProps
+} from "@/components/ui/badge";
 
 interface Category {
   id: string;
@@ -22,7 +38,11 @@ interface JournalEntry {
   id?: string;
   title: string;
   content: string;
-  categoryId: string;
+  categoryIds: string[];
+  metadata?: {
+    wordCount: number;
+    readingTime: number;
+  };
 }
 
 interface JournalEntryFormProps {
@@ -31,19 +51,42 @@ interface JournalEntryFormProps {
   entryId?: string;
 }
 
+const AUTOSAVE_DELAY = 2000; // 2 seconds
+
 export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryFormProps) {
   const [formData, setFormData] = useState<JournalEntry>({
     id: entry?.id || entryId,
     title: entry?.title || '',
     content: entry?.content || '',
-    categoryId: entry?.categoryId || '',
+    categoryIds: entry?.categoryIds || [],
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchingEntry, setFetchingEntry] = useState(!!entryId && !entry);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [editor] = useState(() =>
+    new Editor({
+      extensions: [
+        StarterKit,
+        Placeholder.configure({
+          placeholder: 'Write about your day, thoughts, or experiences...',
+        }),
+        CharacterCount.configure({
+          limit: 10000,
+        }),
+      ],
+      content: entry?.content || '',
+      onUpdate: ({ editor }) => {
+        const content = editor.getHTML();
+        setFormData(prev => ({ ...prev, content }));
+      },
+    })
+  );
+  
   const router = useRouter();
+  const [debouncedFormData] = useDebounce(formData, AUTOSAVE_DELAY);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -61,11 +104,6 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
 
         const data = await response.json();
         setCategories(data);
-
-        // Set default category if none selected
-        if (!formData.categoryId && data.length > 0) {
-          setFormData(prev => ({ ...prev, categoryId: data[0].id }));
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -93,17 +131,21 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
           throw new Error('Failed to fetch journal entry');
         }
 
-        const data = await response.json();
-        console.log('Fetched entry:', data); // Debug log
+        const result = await response.json();
         
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to fetch journal entry');
+        }
+
+        const data = result.data;
         setFormData({
           id: data.id,
           title: data.title,
           content: data.content,
-          categoryId: data.category?.id || (categories.length > 0 ? categories[0].id : ''),
+          categoryIds: data.categories?.map((c: Category) => c.id) || [],
         });
+        editor.commands.setContent(data.content);
       } catch (err) {
-        console.error('Error fetching entry:', err); // Debug log
         setError(err instanceof Error ? err.message : 'An error occurred');
         toast.error('Failed to load journal entry');
       } finally {
@@ -112,7 +154,36 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
     };
 
     fetchEntry();
-  }, [entryId, entry, categories]);
+  }, [entryId, entry, editor]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (!isEditing || !debouncedFormData.id || !debouncedFormData.content) return;
+
+    const autoSave = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/journal/${debouncedFormData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(debouncedFormData),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to auto-save');
+        }
+
+        setLastSaved(new Date());
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+      }
+    };
+
+    autoSave();
+  }, [debouncedFormData, isEditing]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +191,6 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
     setError(null);
 
     try {
-      // Basic validation
       if (!formData.title.trim()) {
         throw new Error('Title is required');
       }
@@ -129,11 +199,10 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
         throw new Error('Content is required');
       }
 
-      if (!formData.categoryId) {
-        throw new Error('Category is required');
+      if (formData.categoryIds.length === 0) {
+        throw new Error('At least one category is required');
       }
 
-      // Get token once
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('You must be logged in to save entries');
@@ -142,16 +211,8 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
       const url = isEditing ? `/api/journal/${entryId || formData.id}` : '/api/journal';
       const method = isEditing ? 'PUT' : 'POST';
 
-      // Prepare submission data - only send necessary fields
-      const submissionData = {
-        title: formData.title.trim(),
-        content: formData.content.trim(),
-        categoryId: formData.categoryId
-      };
-
-      // Set up timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       try {
         const response = await fetch(url, {
@@ -160,7 +221,7 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(submissionData),
+          body: JSON.stringify(formData),
           signal: controller.signal
         });
 
@@ -184,6 +245,7 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
             ...prev,
             ...data
           }));
+          setLastSaved(new Date());
         }
       } catch (fetchError) {
         if (fetchError.name === 'AbortError') {
@@ -212,6 +274,8 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
       </div>
     );
   }
+
+  const selectedCategories = categories.filter(cat => formData.categoryIds.includes(cat.id));
 
   return (
     <Card>
@@ -256,22 +320,29 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
+            <Label>Categories</Label>
             <Select
-              value={formData.categoryId}
-              onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+              value={formData.categoryIds[0]}
+              onValueChange={(value) => {
+                const newCategoryIds = [...formData.categoryIds];
+                if (!newCategoryIds.includes(value)) {
+                  newCategoryIds.push(value);
+                }
+                setFormData({ ...formData, categoryIds: newCategoryIds });
+              }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
+                <SelectValue placeholder="Add a category" />
               </SelectTrigger>
               <SelectContent>
-                {categories.length === 0 ? (
-                  <SelectItem value="no-categories" disabled>
-                    No categories available
-                  </SelectItem>
-                ) : (
-                  categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
+                <SelectGroup>
+                  <SelectLabel>Available Categories</SelectLabel>
+                  {categories.map((category) => (
+                    <SelectItem 
+                      key={category.id} 
+                      value={category.id}
+                      disabled={formData.categoryIds.includes(category.id)}
+                    >
                       <div className="flex items-center gap-2">
                         <span 
                           className="w-3 h-3 rounded-full" 
@@ -280,22 +351,59 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
                         {category.name}
                       </div>
                     </SelectItem>
-                  ))
-                )}
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
+            
+            <div className="flex flex-wrap gap-2 mt-2">
+              {selectedCategories.map((category) => (
+                <Badge
+                  key={category.id}
+                  variant="secondary"
+                  className="flex items-center gap-1 pr-1"
+                  style={{
+                    backgroundColor: `${category.color}20`,
+                    color: category.color,
+                  }}
+                >
+                  {category.name}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 hover:bg-transparent"
+                    onClick={() => {
+                      setFormData({
+                        ...formData,
+                        categoryIds: formData.categoryIds.filter(id => id !== category.id)
+                      });
+                    }}
+                  >
+                    ×
+                  </Button>
+                </Badge>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="content">Content</Label>
-            <Textarea
-              id="content"
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              rows={10}
-              placeholder="Write about your day, thoughts, or experiences..."
-              className="resize-y"
-            />
+            <Label>Content</Label>
+            <div className="min-h-[200px] rounded-md border border-input bg-background px-3 py-2">
+              <EditorContent editor={editor} />
+            </div>
+            <div className="flex justify-between text-sm text-gray-500">
+              <div>
+                {editor.storage.characterCount.characters()} characters
+                {' • '}
+                {editor.storage.characterCount.words()} words
+              </div>
+              {lastSaved && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Last saved: {lastSaved.toLocaleTimeString()}
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
         
