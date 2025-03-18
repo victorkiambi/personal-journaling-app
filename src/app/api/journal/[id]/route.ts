@@ -21,12 +21,20 @@ export async function GET(
   const headers = new Headers(request.headers);
   
   try {
+    // Set up timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
+    
     const response = await fetch(newUrl.toString(), {
       method: request.method,
       headers,
+      signal: controller.signal
     });
     
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
+      console.error(`Journal entry proxy error: ${response.status} ${response.statusText}`);
       return response;
     }
     
@@ -58,6 +66,13 @@ export async function GET(
       { status: 500 }
     );
   } catch (error) {
+    console.error('Journal entry proxy error:', error);
+    if (error.name === 'AbortError') {
+      return NextResponse.json(
+        { message: 'Request timed out. Please try again.' },
+        { status: 408 }
+      );
+    }
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'An unexpected error occurred' },
       { status: 500 }
@@ -69,88 +84,77 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const url = new URL(request.url);
+  const newUrl = new URL(url.toString());
+  newUrl.pathname = `/api/v1/entries/${params.id}`;
+  
+  const headers = new Headers(request.headers);
+  
   try {
-    const url = new URL(request.url);
-    const newUrl = new URL(url.toString());
-    newUrl.pathname = `/api/v1/entries/${params.id}`;
-    
-    const headers = new Headers(request.headers);
-    headers.set('Content-Type', 'application/json');
+    // Set up timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
     
     // Transform the request body from categoryId to categoryIds array
     const requestData = await request.json();
-    
-    // Create a minimal transformed body with only necessary fields
     const transformedBody = {
-      title: requestData.title,
-      content: requestData.content,
-      categoryIds: requestData.categoryId ? [requestData.categoryId] : []
+      ...requestData,
+      categoryIds: requestData.categoryId ? [requestData.categoryId] : undefined
     };
     
-    // Set a reasonable fetch timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds
-    
-    try {
-      const response = await fetch(newUrl.toString(), {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(transformedBody),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        try {
-          const errorJson = JSON.parse(errorText);
-          return NextResponse.json(errorJson, { status: response.status });
-        } catch {
-          return NextResponse.json(
-            { message: `Error: ${response.status} ${response.statusText}` },
-            { status: response.status }
-          );
-        }
-      }
-      
-      const responseData = await response.json();
-      
-      // Transform the response format
-      if (responseData.success && responseData.data) {
-        // Transform the updated entry to match the expected format with a single category
-        const entry = {
-          ...responseData.data,
-          category: responseData.data.categories && responseData.data.categories.length > 0 
-            ? {
-                id: responseData.data.categories[0].id,
-                name: responseData.data.categories[0].name,
-                color: responseData.data.categories[0].color
-              }
-            : {
-                id: 'default',
-                name: 'Uncategorized',
-                color: '#808080'
-              }
-        };
-        return NextResponse.json(entry);
-      }
-      
-      return NextResponse.json(
-        { message: 'Failed to update journal entry' },
-        { status: 500 }
-      );
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
-        return NextResponse.json(
-          { message: 'Request took too long to complete. Please try again.' },
-          { status: 408 }
-        );
-      }
-      throw fetchError;
+    // Remove the original categoryId property
+    if ('categoryId' in transformedBody) {
+      delete transformedBody.categoryId;
     }
+    
+    const response = await fetch(newUrl.toString(), {
+      method: request.method,
+      headers,
+      body: JSON.stringify(transformedBody),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.error(`Journal entry update proxy error: ${response.status} ${response.statusText}`);
+      return response;
+    }
+    
+    const responseData = await response.json();
+    
+    // Transform the response format
+    if (responseData.success && responseData.data) {
+      // Transform the updated entry to match the expected format with a single category
+      const entry = {
+        ...responseData.data,
+        category: responseData.data.categories && responseData.data.categories.length > 0 
+          ? {
+              id: responseData.data.categories[0].id,
+              name: responseData.data.categories[0].name,
+              color: responseData.data.categories[0].color
+            }
+          : {
+              id: 'default',
+              name: 'Uncategorized',
+              color: '#808080'
+            }
+      };
+      return NextResponse.json(entry);
+    }
+    
+    return NextResponse.json(
+      { message: 'Failed to update journal entry' },
+      { status: 500 }
+    );
   } catch (error) {
+    console.error('Journal entry update proxy error:', error);
+    if (error.name === 'AbortError') {
+      return NextResponse.json(
+        { message: 'Request timed out. Please try again.' },
+        { status: 408 }
+      );
+    }
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'An unexpected error occurred' },
       { status: 500 }
@@ -169,17 +173,32 @@ export async function DELETE(
   const headers = new Headers(request.headers);
   
   try {
+    // Set up timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
+    
     const response = await fetch(newUrl.toString(), {
       method: 'DELETE',
       headers,
+      signal: controller.signal
     });
     
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
+      console.error(`Journal entry delete proxy error: ${response.status} ${response.statusText}`);
       return response;
     }
     
     return NextResponse.json({ message: 'Journal entry deleted successfully' });
   } catch (error) {
+    console.error('Journal entry delete proxy error:', error);
+    if (error.name === 'AbortError') {
+      return NextResponse.json(
+        { message: 'Request timed out. Please try again.' },
+        { status: 408 }
+      );
+    }
     return NextResponse.json(
       { message: error instanceof Error ? error.message : 'An unexpected error occurred' },
       { status: 500 }

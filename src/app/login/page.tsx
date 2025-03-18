@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/auth.context';
 
 const formSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -44,20 +44,7 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to login');
-      }
-      
-      // Use the Auth context to login
-      login(result.token);
+      await login(data.email, data.password);
       
       toast.success('Login successful', {
         description: 'You have been logged in successfully'

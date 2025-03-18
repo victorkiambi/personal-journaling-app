@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Check, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/auth.context';
 import { useRouter } from 'next/navigation';
 
 interface UserProfile {
@@ -23,7 +23,7 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,10 +47,10 @@ export default function ProfilePage() {
     if (!isMounted) return;
     
     // Wait for auth state to be determined
-    if (isLoading) return;
+    if (authLoading) return;
     
     // Redirect if not authenticated
-    if (!isAuthenticated) {
+    if (!user) {
       router.push('/login');
       return;
     }
@@ -80,7 +80,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [isAuthenticated, isLoading, isMounted, router]);
+  }, [user, authLoading, isMounted, router]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,7 +170,7 @@ export default function ProfilePage() {
   };
 
   // Show loading until auth is determined
-  if (isLoading || !isMounted) {
+  if (authLoading || !isMounted) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />

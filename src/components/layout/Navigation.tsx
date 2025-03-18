@@ -15,12 +15,12 @@ import {
   Tag, 
   BarChart 
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/auth.context';
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { isAuthenticated, logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -50,7 +50,7 @@ export default function Navigation() {
             </div>
           </div>
           <div className="hidden md:ml-6 md:flex md:items-center md:space-x-4">
-            {isAuthenticated ? (
+            {user ? (
               <>
                 <Link href="/" passHref>
                   <Button
@@ -146,7 +146,7 @@ export default function Navigation() {
       {isMenuOpen && (
         <div className="md:hidden">
           <div className="pt-2 pb-3 space-y-1">
-            {isAuthenticated ? (
+            {user ? (
               <>
                 <Link href="/" passHref>
                   <Button

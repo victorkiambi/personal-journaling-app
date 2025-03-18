@@ -78,6 +78,12 @@ model JournalEntry {
   categories  Category[] @relation("EntryCategories")
   metadata    EntryMetadata?
 
+  // Indexes for better performance
+  @@index([userId, createdAt(sort: Desc)]) // For listing entries by user
+  @@index([title]) // For title search
+  @@index([content]) // For content search
+  @@index([userId, isPublic]) // For filtering public/private entries
+
   @@map("journal_entries")
 }
 
@@ -93,6 +99,11 @@ model EntryMetadata {
 
   // Relations
   entry          JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  // Indexes for better performance
+  @@index([wordCount]) // For sorting by word count
+  @@index([readingTime]) // For sorting by reading time
+  @@index([createdAt]) // For time-based queries
 
   @@map("entry_metadata")
 }

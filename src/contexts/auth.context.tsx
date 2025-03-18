@@ -91,6 +91,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
+      
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -99,21 +104,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+        throw new Error(data.message || 'Login failed');
       }
 
-      const { token, user: userData } = await response.json();
-      localStorage.setItem('token', token);
-      setUser(userData);
-      toast.success('Login successful!');
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
       
-      // Force a hard navigation to ensure the page refreshes
-      window.location.href = '/journal';
+      // If on a public auth route, redirect to journal
+      if (pathname === '/login' || pathname === '/register') {
+        router.push('/journal');
+      }
     } catch (err) {
+      console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
-      toast.error(err instanceof Error ? err.message : 'Login failed');
+      throw err; // Re-throw to handle in the component
     } finally {
       setLoading(false);
     }
@@ -123,6 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
+      
+      if (!name || !email || !password) {
+        throw new Error('Name, email, and password are required');
+      }
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -131,21 +143,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ name, email, password }),
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Registration failed');
+        throw new Error(data.message || 'Registration failed');
       }
 
-      const { token, user: userData } = await response.json();
-      localStorage.setItem('token', token);
-      setUser(userData);
-      toast.success('Registration successful!');
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
       
-      // Force a hard navigation to ensure the page refreshes
-      window.location.href = '/journal';
+      // If on a public auth route, redirect to journal
+      if (pathname === '/login' || pathname === '/register') {
+        router.push('/journal');
+      }
     } catch (err) {
+      console.error('Registration error:', err);
       setError(err instanceof Error ? err.message : 'Registration failed');
-      toast.error(err instanceof Error ? err.message : 'Registration failed');
+      throw err; // Re-throw to handle in the component
     } finally {
       setLoading(false);
     }
@@ -154,9 +168,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    toast.success('Logged out successfully');
-    // Force a hard navigation to ensure the page refreshes
-    window.location.href = '/login';
+    
+    // If not on a public route, redirect to login
+    if (!PUBLIC_ROUTES.includes(pathname)) {
+      router.push('/login');
+    }
   };
 
   return (

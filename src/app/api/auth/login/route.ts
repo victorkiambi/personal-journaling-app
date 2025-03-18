@@ -21,6 +21,12 @@ export async function POST(request: NextRequest) {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+      },
     });
 
     if (!user) {
@@ -47,14 +53,11 @@ export async function POST(request: NextRequest) {
       name: user.name
     });
 
-    // Return token and user data
+    // Return token and user data (excluding passwordHash)
+    const { passwordHash, ...userData } = user;
     return NextResponse.json({
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name
-      }
+      user: userData
     });
   } catch (error) {
     console.error('Login error:', error);

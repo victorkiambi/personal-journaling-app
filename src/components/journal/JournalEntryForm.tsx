@@ -149,9 +149,9 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
         categoryId: formData.categoryId
       };
 
-      // Set a reasonable fetch timeout
+      // Set up timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
 
       try {
         const response = await fetch(url, {
@@ -167,45 +167,42 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          const errorData = await response.json();
-          
-          // Handle timeout specifically
-          if (response.status === 408) {
-            throw new Error('Request timed out. The server took too long to respond. Please try again.');
-          }
-          
-          throw new Error(errorData.message || 'Failed to save journal entry');
+          const errorData = await response.json().catch(() => null);
+          throw new Error(
+            errorData?.message || 
+            `Failed to ${isEditing ? 'update' : 'create'} journal entry`
+          );
         }
+
+        const data = await response.json();
+        toast.success(`Journal entry ${isEditing ? 'updated' : 'created'} successfully`);
         
-        toast.success(isEditing ? 'Journal entry updated successfully' : 'Journal entry created successfully');
-        router.push('/journal');
+        if (!isEditing) {
+          router.push(`/journal/${data.id}`);
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            ...data
+          }));
+        }
       } catch (fetchError) {
-        clearTimeout(timeoutId);
-        
-        // Handle abort error (timeout)
         if (fetchError.name === 'AbortError') {
-          throw new Error('Request timed out. Please try again with a smaller entry or check your connection.');
+          throw new Error('Request timed out. Please try again.');
         }
-        
         throw fetchError;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      toast.error(err instanceof Error ? err.message : 'Failed to save journal entry');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Add a retry function
   const handleRetry = () => {
     setError(null);
-    setLoading(true);
-    
-    // Set a slight delay before retrying to ensure UI updates
-    setTimeout(() => {
-      handleSubmit(new Event('submit') as React.FormEvent);
-    }, 100);
+    handleSubmit(new Event('submit') as any);
   };
 
   if (fetchingEntry || categoriesLoading) {
@@ -269,7 +266,7 @@ export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryForm
               </SelectTrigger>
               <SelectContent>
                 {categories.length === 0 ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="no-categories" disabled>
                     No categories available
                   </SelectItem>
                 ) : (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/auth.context';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,16 +9,16 @@ import { Loader2, BookOpen, Calendar, Tag, ShieldCheck, PenTool } from 'lucide-r
 import Image from 'next/image';
 
 export default function HomePage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!loading && user) {
       router.push('/journal');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [user, loading, router]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -26,7 +26,7 @@ export default function HomePage() {
     );
   }
 
-  if (isAuthenticated) {
+  if (user) {
     return null; // Will redirect via useEffect
   }
 
@@ -58,33 +58,26 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
-            <div className="mt-12 lg:mt-0 lg:w-1/2">
-              <div className="relative mx-auto rounded-xl shadow-xl overflow-hidden max-w-md lg:max-w-xl bg-white">
-                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
-                <div className="p-6 lg:p-8">
-                  <div className="mb-6 flex items-center justify-between">
-                    <span className="font-semibold text-lg text-gray-800">My Journal</span>
-                    <div className="flex space-x-1">
-                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="border-l-4 border-indigo-500 pl-4 py-2">
-                      <div className="text-sm text-gray-500">June 15, 2023</div>
-                      <h3 className="font-medium text-gray-900">Reflections on my journey</h3>
-                      <p className="text-gray-600 text-sm mt-1">Today I reflected on how far I've come this year. The challenges I faced in the spring seemed insurmountable at the time, but looking back...</p>
-                    </div>
-                    <div className="border-l-4 border-purple-500 pl-4 py-2">
-                      <div className="text-sm text-gray-500">June 10, 2023</div>
-                      <h3 className="font-medium text-gray-900">Morning meditation insights</h3>
-                      <p className="text-gray-600 text-sm mt-1">My morning meditation practice has been transformative. Today I noticed how my thoughts are becoming less scattered and more focused...</p>
-                    </div>
-                    <div className="border-l-4 border-pink-500 pl-4 py-2">
-                      <div className="text-sm text-gray-500">June 5, 2023</div>
-                      <h3 className="font-medium text-gray-900">New project ideas</h3>
-                      <p className="text-gray-600 text-sm mt-1">I've been brainstorming some new ideas for creative projects. The concept of combining photography with journaling feels particularly exciting...</p>
+            <div className="lg:w-1/2 mt-10 lg:mt-0">
+              <div className="relative mx-auto w-full max-w-lg lg:max-w-xl">
+                <div className="relative w-full h-80">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-100 to-indigo-50 rounded-lg transform -rotate-6 scale-105"></div>
+                  <div className="absolute inset-0 bg-white rounded-lg shadow-xl transform rotate-3 scale-105"></div>
+                  <div className="relative bg-white rounded-lg shadow-lg p-6">
+                    <div className="space-y-4">
+                      <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
+                      <div className="space-y-2">
+                        <div className="h-4 w-full bg-gray-200 rounded"></div>
+                        <div className="h-4 w-5/6 bg-gray-200 rounded"></div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 w-full bg-gray-200 rounded"></div>
+                        <div className="h-4 w-4/6 bg-gray-200 rounded"></div>
+                      </div>
+                      <div className="flex space-x-4">
+                        <div className="h-8 w-24 bg-indigo-100 rounded"></div>
+                        <div className="h-8 w-24 bg-indigo-100 rounded"></div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -92,122 +85,98 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent"></div>
       </div>
 
       {/* Features Section */}
-      <div className="py-24 bg-white">
+      <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Features</h2>
-            <p className="mt-2 text-3xl font-extrabold text-gray-900 tracking-tight sm:text-4xl">
+            <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
               Everything you need to journal effectively
-            </p>
-            <p className="mt-5 max-w-2xl mx-auto text-xl text-gray-500">
-              Our carefully designed features help you capture, organize, and reflect on your thoughts.
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              Simple yet powerful features to help you maintain a meaningful journaling practice.
             </p>
           </div>
 
-          <div className="mt-16">
-            <div className="grid grid-cols-1 gap-y-12 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
-                <div>
-                  <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
-                    <PenTool className="h-6 w-6 text-indigo-600" />
-                  </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Rich Text Editor
-                  </h3>
-                  <p className="mt-3 text-base text-gray-500">
-                    Express yourself with formatting, links, lists, and other rich text features that make your entries visually engaging.
-                  </p>
-                </div>
+          <div className="mt-12 grid gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
+              <div>
+                <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
+                  <PenTool className="h-6 w-6 text-indigo-600" />
+                </span>
               </div>
-
-              <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
-                <div>
-                  <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
-                    <Tag className="h-6 w-6 text-indigo-600" />
-                  </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Custom Categories
-                  </h3>
-                  <p className="mt-3 text-base text-gray-500">
-                    Organize your entries with personalized categories that help you track different areas of your life and interests.
-                  </p>
-                </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Rich Text Editor
+                </h3>
+                <p className="mt-3 text-base text-gray-500">
+                  Express yourself with a beautiful and intuitive editor that supports formatting, lists, and more.
+                </p>
               </div>
+            </div>
 
-              <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
-                <div>
-                  <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
-                    <Calendar className="h-6 w-6 text-indigo-600" />
-                  </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Timeline View
-                  </h3>
-                  <p className="mt-3 text-base text-gray-500">
-                    Visualize your journey with a beautiful timeline that helps you see patterns and growth over time.
-                  </p>
-                </div>
+            <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
+              <div>
+                <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
+                  <ShieldCheck className="h-6 w-6 text-indigo-600" />
+                </span>
               </div>
-
-              <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
-                <div>
-                  <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
-                    <ShieldCheck className="h-6 w-6 text-indigo-600" />
-                  </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Private & Secure
-                  </h3>
-                  <p className="mt-3 text-base text-gray-500">
-                    Your entries are private and protected with industry-standard security practices, so your thoughts remain confidential.
-                  </p>
-                </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Private & Secure
+                </h3>
+                <p className="mt-3 text-base text-gray-500">
+                  Your journal entries are encrypted and only accessible to you. Your privacy is our top priority.
+                </p>
               </div>
+            </div>
 
-              <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
-                <div>
-                  <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
-                    <svg className="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                    </svg>
-                  </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Mood Tracking
-                  </h3>
-                  <p className="mt-3 text-base text-gray-500">
-                    Understand your emotional patterns by tracking your mood alongside your journal entries.
-                  </p>
-                </div>
+            <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
+              <div>
+                <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
+                  <Tag className="h-6 w-6 text-indigo-600" />
+                </span>
               </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Custom Categories
+                </h3>
+                <p className="mt-3 text-base text-gray-500">
+                  Organize your entries with personalized categories that help you track different areas of your life and interests.
+                </p>
+              </div>
+            </div>
 
-              <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
-                <div>
-                  <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
-                    <svg className="h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                  </span>
-                </div>
-                <div className="mt-8">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Mobile Friendly
-                  </h3>
-                  <p className="mt-3 text-base text-gray-500">
-                    Journal on the go with our responsive design that works beautifully on all your devices.
-                  </p>
-                </div>
+            <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
+              <div>
+                <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
+                  <Calendar className="h-6 w-6 text-indigo-600" />
+                </span>
+              </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Timeline View
+                </h3>
+                <p className="mt-3 text-base text-gray-500">
+                  Visualize your journey with a beautiful timeline that helps you see patterns and growth over time.
+                </p>
+              </div>
+            </div>
+
+            <div className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition duration-300 overflow-hidden p-6">
+              <div>
+                <span className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-md">
+                  <BookOpen className="h-6 w-6 text-indigo-600" />
+                </span>
+              </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Search & Filter
+                </h3>
+                <p className="mt-3 text-base text-gray-500">
+                  Easily find past entries with powerful search and filtering capabilities across your entire journal.
+                </p>
               </div>
             </div>
           </div>
@@ -240,32 +209,9 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
-            <div className="mt-12 lg:mt-0 flex justify-center">
-              <div className="bg-white p-5 rounded-lg shadow-lg transform rotate-3 max-w-xs">
-                <div className="text-sm text-gray-500 mb-2">June 20, 2023</div>
-                <div className="text-gray-900 font-medium mb-4">Today I started my journaling practice</div>
-                <div className="text-gray-600 text-sm">I've been meaning to start journaling for years, and today I finally took the first step. Already I feel more clarity about my goals and priorities...</div>
-                <div className="mt-4 flex justify-end">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                    Beginnings
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-white">
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center">
-          <div className="flex items-center mb-6">
-            <BookOpen className="h-8 w-8 text-indigo-600 mr-3" />
-            <span className="text-xl font-bold text-gray-900">Personal Journal</span>
-          </div>
-          <p className="text-gray-500 text-sm">© {new Date().getFullYear()} Personal Journal. All rights reserved.</p>
-        </div>
-      </footer>
     </div>
   );
 }

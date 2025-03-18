@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/auth.context';
 import { toast } from 'sonner';
 
 // Types for analytics data
@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isMounted, setIsMounted] = useState(false);
 
   // Handle client-side mounting
@@ -78,16 +78,16 @@ export default function AnalyticsPage() {
     if (!isMounted) return;
     
     // Wait for auth state to be determined
-    if (isLoading) return;
+    if (authLoading) return;
     
     // Redirect if not authenticated
-    if (!isAuthenticated) {
-      router.push('/login');
+    if (!user) {
+      window.location.href = '/login';
       return;
     }
     
     fetchAnalytics();
-  }, [isAuthenticated, isLoading, isMounted, router]);
+  }, [user, authLoading, isMounted, router]);
 
   const fetchAnalytics = async () => {
     try {
@@ -97,9 +97,10 @@ export default function AnalyticsPage() {
       // Ensure we're in client environment
       if (typeof window === 'undefined') return;
       
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('Authentication required');
+        window.location.href = '/login';
+        return;
       }
       
       const response = await fetch('/api/analytics', {
@@ -151,7 +152,7 @@ export default function AnalyticsPage() {
   }
 
   // Show loading until auth is determined
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="container mx-auto py-10">
         <h1 className="text-3xl font-bold mb-6">Journal Analytics</h1>
