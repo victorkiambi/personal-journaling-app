@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Check, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/auth.context';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 interface UserProfile {
   id: string;
@@ -22,7 +23,8 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +35,26 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Handle client-side mounting
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
+    // Only run after component is mounted on the client
+    if (!isMounted) return;
+    
+    // Wait for auth state to be determined
+    if (isLoading) return;
+    
+    // Redirect if not authenticated
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -59,10 +79,8 @@ export default function ProfilePage() {
       }
     };
 
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
+    fetchProfile();
+  }, [isAuthenticated, isLoading, isMounted, router]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +100,7 @@ export default function ProfilePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name }),
       });
 
       if (!response.ok) {
@@ -150,6 +168,15 @@ export default function ProfilePage() {
       setChangingPassword(false);
     }
   };
+
+  // Show loading until auth is determined
+  if (isLoading || !isMounted) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
