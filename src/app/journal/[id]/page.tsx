@@ -3,6 +3,22 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Edit, Trash2, Calendar, Tag, ChevronLeft } from 'lucide-react';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+
 
 interface JournalEntry {
   id: string;
@@ -52,10 +68,6 @@ export default function JournalEntryPage() {
   }, [id]);
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this entry?')) {
-      return;
-    }
-
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('token');
@@ -70,90 +82,138 @@ export default function JournalEntryPage() {
         throw new Error('Failed to delete journal entry');
       }
 
+      toast.success('Journal entry deleted successfully');
       router.push('/journal');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+      toast.error('Failed to delete journal entry');
       setIsDeleting(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), 'MMMM d, yyyy');
+    } catch (e) {
+      return dateString;
     }
   };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
       </div>
     );
   }
 
   if (error || !entry) {
     return (
-      <div className="text-center text-red-600 py-4">
-        {error || 'Journal entry not found'}
-      </div>
+      <Card className="border-red-200 bg-red-50">
+        <CardContent className="pt-6">
+          <div className="text-center text-red-600 py-4">
+            {error || 'Journal entry not found'}
+            <div className="mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => router.push('/journal')}
+              >
+                Back to Journal
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="py-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="pb-5 border-b border-gray-200 sm:flex sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold leading-6 text-gray-900">
-            {entry.title}
-          </h1>
-          <div className="mt-3 sm:mt-0 sm:ml-4">
-            <Link
-              href={`/journal/${entry.id}/edit`}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex items-center justify-between mb-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => router.push('/journal')}
+          className="inline-flex items-center text-gray-500 hover:text-gray-700"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Back to Journal
+        </Button>
+        
+        <div className="flex space-x-2">
+          <Link href={`/journal/${entry.id}/edit`}>
+            <Button variant="outline" size="sm">
+              <Edit className="h-4 w-4 mr-2" />
               Edit
-            </Link>
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="px-4 py-5 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                    style={{
-                      backgroundColor: `${entry.category.color}20`,
-                      color: entry.category.color,
-                    }}
-                  >
-                    {entry.category.name}
-                  </span>
-                  <time className="text-sm text-gray-500">
-                    {new Date(entry.createdAt).toLocaleDateString()}
-                  </time>
-                </div>
-                {entry.updatedAt !== entry.createdAt && (
-                  <span className="text-sm text-gray-500">
-                    Updated {new Date(entry.updatedAt).toLocaleDateString()}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
-              <div className="prose max-w-none">
-                {entry.content.split('\n').map((paragraph, index) => (
-                  <p key={index} className="mb-4">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
+            </Button>
+          </Link>
+          
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={isDeleting}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Are you sure?</DialogTitle>
+                <DialogDescription>
+                  This action cannot be undone. This will permanently delete your journal entry.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button>Cancel</Button>
+                <Button onClick={handleDelete} disabled={isDeleting}>
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
+      
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+              style={{
+                backgroundColor: `${entry.category.color}20`,
+                color: entry.category.color,
+              }}
+            >
+              <Tag className="h-3 w-3 mr-1" />
+              {entry.category.name}
+            </span>
+          </div>
+          
+          <h1 className="text-2xl font-bold text-gray-900">
+            {entry.title}
+          </h1>
+          
+          <div className="flex items-center text-sm text-gray-500 mt-2">
+            <Calendar className="h-4 w-4 mr-1" />
+            <time>{formatDate(entry.createdAt)}</time>
+            {entry.updatedAt !== entry.createdAt && (
+              <span className="ml-3">
+                (Updated: {formatDate(entry.updatedAt)})
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        
+        <Separator />
+        
+        <CardContent className="py-6">
+          <div className="prose max-w-none">
+            {entry.content.split('\n').map((paragraph, index) => (
+              <p key={index} className="mb-4">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

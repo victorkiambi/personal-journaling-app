@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { AuthService } from '@/services/auth.service';
 import { headers } from 'next/headers';
+import { verifyJWT } from '@/lib/jwt';
 
 export async function withAuth(
   request: NextRequest,
@@ -14,16 +14,24 @@ export async function withAuth(
 
     if (!token) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const { userId } = AuthService.verifyToken(token);
-    return await handler(userId);
+    const payload = await verifyJWT(token);
+    
+    if (!payload || !payload.userId) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+    
+    return await handler(payload.userId);
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
+      { success: false, message: 'Unauthorized' },
       { status: 401 }
     );
   }
@@ -34,13 +42,13 @@ export function handleApiError(error: unknown) {
   
   if (error instanceof Error) {
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, message: error.message },
       { status: 400 }
     );
   }
 
   return NextResponse.json(
-    { success: false, error: 'Internal server error' },
+    { success: false, message: 'Internal server error' },
     { status: 500 }
   );
 } 

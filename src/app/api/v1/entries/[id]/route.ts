@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JournalService } from '@/services/journal.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
 
+// Set a reasonable timeout
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '2mb',
+    },
+  },
+  maxDuration: 30, // 30 seconds
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -27,6 +37,12 @@ export async function PUT(
   return withAuth(request, async (userId) => {
     try {
       const body = await request.json();
+      
+      // Remove any problematic fields
+      if ('id' in body) {
+        delete body.id;
+      }
+      
       const entry = await JournalService.updateEntry(userId, params.id, body);
       
       return NextResponse.json({

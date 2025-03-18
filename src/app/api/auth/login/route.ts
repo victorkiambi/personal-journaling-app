@@ -1,17 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthService } from '@/services/auth.service';
-import { handleApiError } from '../../middleware';
+import { PrismaClient } from '@prisma/client';
+import { compare } from 'bcrypt';
+import { signJWT } from '@/lib/jwt';
+
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const result = await AuthService.login(body);
+    const { email, password } = body;
+
+    // Validate request
+    if (!email || !password) {
+      return NextResponse.json(
+        { message: 'Email and password are required' },
+        { status: 400 }
+      );
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid email or password' },
+        { status: 401 }
+      );
+    }
+
+    // Verify password
+    const passwordMatch = await compare(password, user.passwordHash);
     
+    if (!passwordMatch) {
+      return NextResponse.json(
+        { message: 'Invalid email or password' },
+        { status: 401 }
+      );
+    }
+
+    // Generate JWT token
+    const token = await signJWT({
+      userId: user.id,
+      email: user.email,
+      name: user.name
+    });
+
+    // Return token and user data
     return NextResponse.json({
-      success: true,
-      data: result
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }
     });
   } catch (error) {
-    return handleApiError(error);
+    console.error('Login error:', error);
+    return NextResponse.json(
+      { message: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { AuthProvider } from "@/contexts/auth.context";
-import { Layout } from '@/components/layout/Layout';
-import { Toaster } from '@/components/ui/sonner';
+import './globals.css';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import Navigation from '@/components/layout/Navigation';
+import { AuthProvider } from '@/context/AuthContext';
+import { Toaster } from 'sonner';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Personal Journal",
-  description: "A personal journaling application for capturing your thoughts and memories",
+  title: 'Shamiri Journal',
+  description: 'A journaling app for your thoughts and reflections',
 };
 
 export default function RootLayout({
@@ -21,7 +21,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <Layout>{children}</Layout>
+          <Navigation />
+          <main className="min-h-screen">{children}</main>
           <Toaster />
         </AuthProvider>
       </body>

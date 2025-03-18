@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/contexts/auth.context';
+import { useAuth } from '@/context/AuthContext';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,16 +9,16 @@ import { Loader2, BookOpen, Calendar, Tag, ShieldCheck, PenTool } from 'lucide-r
 import Image from 'next/image';
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!isLoading && isAuthenticated) {
       router.push('/journal');
     }
-  }, [user, loading, router]);
+  }, [isAuthenticated, isLoading, router]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -26,7 +26,7 @@ export default function HomePage() {
     );
   }
 
-  if (user) {
+  if (isAuthenticated) {
     return null; // Will redirect via useEffect
   }
 

@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 
 export class JournalService {
   static async createEntry(userId: string, data: JournalEntryData) {
+    const wordCount = data.content ? data.content.split(/\s+/).length : 0;
+    
     const entry = await prisma.journalEntry.create({
       data: {
         userId,
@@ -16,8 +18,8 @@ export class JournalService {
         } : undefined,
         metadata: {
           create: {
-            wordCount: data.content.split(/\s+/).length,
-            readingTime: Math.ceil(data.content.split(/\s+/).length / 200), // Assuming 200 words per minute
+            wordCount,
+            readingTime: Math.ceil(wordCount / 200), // Assuming 200 words per minute
           }
         }
       },
@@ -31,57 +33,73 @@ export class JournalService {
   }
 
   static async updateEntry(userId: string, entryId: string, data: Partial<JournalEntryData>) {
-    const entry = await prisma.journalEntry.findFirst({
-      where: {
-        id: entryId,
-        userId
+    try {
+      // Calculate word count only if content is provided (more efficient)
+      const wordCount = data.content ? data.content.split(/\s+/).length : undefined;
+      const readingTime = wordCount ? Math.ceil(wordCount / 200) : undefined;
+    
+      // Use a single update operation with a where clause that includes userId
+      return await prisma.journalEntry.update({
+        where: { 
+          id: entryId,
+          userId // This ensures the user owns the entry
+        },
+        data: {
+          // Only update fields that are provided
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.content !== undefined && { content: data.content }),
+          ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
+          
+          // Update categories if provided
+          ...(data.categoryIds && {
+            categories: {
+              set: data.categoryIds.map(id => ({ id }))
+            }
+          }),
+          
+          // Only update metadata if word count changed
+          ...(wordCount !== undefined && {
+            metadata: {
+              upsert: {
+                create: {
+                  wordCount,
+                  readingTime
+                },
+                update: {
+                  wordCount,
+                  readingTime
+                }
+              }
+            }
+          })
+        },
+        include: {
+          categories: true,
+          metadata: true
+        }
+      });
+    } catch (error) {
+      console.error('Error in updateEntry:', error);
+      // Add more context to the error
+      if (error.code === 'P2025') {
+        throw new Error('Entry not found or you do not have permission to update it');
       }
-    });
-
-    if (!entry) {
-      throw new Error('Entry not found');
+      throw error;
     }
-
-    const updatedEntry = await prisma.journalEntry.update({
-      where: { id: entryId },
-      data: {
-        title: data.title,
-        content: data.content,
-        isPublic: data.isPublic,
-        categories: data.categoryIds ? {
-          set: data.categoryIds.map(id => ({ id }))
-        } : undefined,
-        metadata: data.content ? {
-          update: {
-            wordCount: data.content.split(/\s+/).length,
-            readingTime: Math.ceil(data.content.split(/\s+/).length / 200),
-          }
-        } : undefined
-      },
-      include: {
-        categories: true,
-        metadata: true
-      }
-    });
-
-    return updatedEntry;
   }
 
   static async deleteEntry(userId: string, entryId: string) {
-    const entry = await prisma.journalEntry.findFirst({
+    // Use a single delete operation with a where clause that includes userId
+    const result = await prisma.journalEntry.deleteMany({
       where: {
         id: entryId,
-        userId
+        userId // This ensures the user owns the entry
       }
     });
-
-    if (!entry) {
-      throw new Error('Entry not found');
+    
+    if (result.count === 0) {
+      throw new Error('Entry not found or you do not have permission to delete it');
     }
-
-    await prisma.journalEntry.delete({
-      where: { id: entryId }
-    });
   }
 
   static async getEntry(userId: string, entryId: string) {

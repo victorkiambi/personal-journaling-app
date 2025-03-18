@@ -2,6 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertCircle, Loader2, ChevronLeft, Save } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 interface Category {
   id: string;
@@ -19,16 +28,20 @@ interface JournalEntry {
 interface JournalEntryFormProps {
   entry?: JournalEntry;
   isEditing?: boolean;
+  entryId?: string;
 }
 
-export function JournalEntryForm({ entry, isEditing }: JournalEntryFormProps) {
+export function JournalEntryForm({ entry, isEditing, entryId }: JournalEntryFormProps) {
   const [formData, setFormData] = useState<JournalEntry>({
+    id: entry?.id || entryId,
     title: entry?.title || '',
     content: entry?.content || '',
     categoryId: entry?.categoryId || '',
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingEntry, setFetchingEntry] = useState(!!entryId && !entry);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -55,11 +68,51 @@ export function JournalEntryForm({ entry, isEditing }: JournalEntryFormProps) {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setCategoriesLoading(false);
       }
     };
 
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    const fetchEntry = async () => {
+      if (!entryId || entry) return;
+      
+      try {
+        setFetchingEntry(true);
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/journal/${entryId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch journal entry');
+        }
+
+        const data = await response.json();
+        console.log('Fetched entry:', data); // Debug log
+        
+        setFormData({
+          id: data.id,
+          title: data.title,
+          content: data.content,
+          categoryId: data.category?.id || (categories.length > 0 ? categories[0].id : ''),
+        });
+      } catch (err) {
+        console.error('Error fetching entry:', err); // Debug log
+        setError(err instanceof Error ? err.message : 'An error occurred');
+        toast.error('Failed to load journal entry');
+      } finally {
+        setFetchingEntry(false);
+      }
+    };
+
+    fetchEntry();
+  }, [entryId, entry, categories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,130 +120,208 @@ export function JournalEntryForm({ entry, isEditing }: JournalEntryFormProps) {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const url = isEditing ? `/api/journal/${entry?.id}` : '/api/journal';
-      const method = isEditing ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save journal entry');
+      // Basic validation
+      if (!formData.title.trim()) {
+        throw new Error('Title is required');
       }
 
-      router.push('/journal');
+      if (!formData.content.trim()) {
+        throw new Error('Content is required');
+      }
+
+      if (!formData.categoryId) {
+        throw new Error('Category is required');
+      }
+
+      // Get token once
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('You must be logged in to save entries');
+      }
+
+      const url = isEditing ? `/api/journal/${entryId || formData.id}` : '/api/journal';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      // Prepare submission data - only send necessary fields
+      const submissionData = {
+        title: formData.title.trim(),
+        content: formData.content.trim(),
+        categoryId: formData.categoryId
+      };
+
+      // Set a reasonable fetch timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds
+
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(submissionData),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          
+          // Handle timeout specifically
+          if (response.status === 408) {
+            throw new Error('Request timed out. The server took too long to respond. Please try again.');
+          }
+          
+          throw new Error(errorData.message || 'Failed to save journal entry');
+        }
+        
+        toast.success(isEditing ? 'Journal entry updated successfully' : 'Journal entry created successfully');
+        router.push('/journal');
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        // Handle abort error (timeout)
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Request timed out. Please try again with a smaller entry or check your connection.');
+        }
+        
+        throw fetchError;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+      toast.error(err instanceof Error ? err.message : 'Failed to save journal entry');
     } finally {
       setLoading(false);
     }
   };
 
+  // Add a retry function
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    
+    // Set a slight delay before retrying to ensure UI updates
+    setTimeout(() => {
+      handleSubmit(new Event('submit') as React.FormEvent);
+    }, 100);
+  };
+
+  if (fetchingEntry || categoriesLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label
-          htmlFor="title"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Title
-        </label>
-        <div className="mt-1">
-          <input
-            type="text"
-            name="title"
-            id="title"
-            required
-            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData({ ...formData, title: e.target.value })
-            }
-          />
-        </div>
-      </div>
+    <Card>
+      <form onSubmit={handleSubmit}>
+        <CardHeader>
+          <CardTitle>{isEditing ? 'Edit Journal Entry' : 'New Journal Entry'}</CardTitle>
+          <CardDescription>
+            {isEditing 
+              ? 'Update your thoughts, feelings, and experiences' 
+              : 'Record your thoughts, feelings, and experiences'}
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="flex flex-col gap-2">
+                <span>{error}</span>
+                {error.includes('timed out') && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRetry}
+                    className="self-start mt-2"
+                  >
+                    Try Again
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
 
-      <div>
-        <label
-          htmlFor="category"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Category
-        </label>
-        <select
-          id="category"
-          name="category"
-          required
-          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          value={formData.categoryId}
-          onChange={(e) =>
-            setFormData({ ...formData, categoryId: e.target.value })
-          }
-        >
-          <option value="">Select a category</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Enter a title for your journal entry"
+            />
+          </div>
 
-      <div>
-        <label
-          htmlFor="content"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Content
-        </label>
-        <div className="mt-1">
-          <textarea
-            id="content"
-            name="content"
-            rows={8}
-            required
-            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"
-            value={formData.content}
-            onChange={(e) =>
-              setFormData({ ...formData, content: e.target.value })
-            }
-          />
-        </div>
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="category">Category</Label>
+            <Select
+              value={formData.categoryId}
+              onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.length === 0 ? (
+                  <SelectItem value="" disabled>
+                    No categories available
+                  </SelectItem>
+                ) : (
+                  categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: category.color }}
+                        />
+                        {category.name}
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {error && (
-        <div className="text-red-600 text-sm">{error}</div>
-      )}
-
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-        >
-          {loading
-            ? isEditing
-              ? 'Saving...'
-              : 'Creating...'
-            : isEditing
-            ? 'Save changes'
-            : 'Create entry'}
-        </button>
-      </div>
-    </form>
+          <div className="space-y-2">
+            <Label htmlFor="content">Content</Label>
+            <Textarea
+              id="content"
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              rows={10}
+              placeholder="Write about your day, thoughts, or experiences..."
+              className="resize-y"
+            />
+          </div>
+        </CardContent>
+        
+        <CardFooter className="flex justify-between">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => router.back()}
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          
+          <Button 
+            type="submit" 
+            disabled={loading}
+          >
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Save className="h-4 w-4 mr-2" />
+            {isEditing ? 'Update Entry' : 'Save Entry'}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   );
 } 
