@@ -26,8 +26,14 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Password changed successfully'
       });
-    } catch (error) {
-      return handleValidationError(error);
+    } catch (error: any) {
+      // Handle validation errors
+      if (error.name === 'ValidationError' || error.name === 'ZodError') {
+        return handleValidationError(error);
+      }
+      
+      // Handle other errors
+      return handleApiError(error);
     }
   });
 } 
