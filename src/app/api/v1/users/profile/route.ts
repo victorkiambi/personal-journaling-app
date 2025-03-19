@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
           id: true,
           name: true,
           email: true,
-          preferences: {
+          settings: {
             select: {
               id: true,
               theme: true,
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest) {
           id: true,
           name: true,
           email: true,
-          preferences: {
+          settings: {
             select: {
               id: true,
               theme: true,

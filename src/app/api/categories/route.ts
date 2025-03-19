@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const response = await fetch(newUrl.toString(), {
     method: request.method,
     headers,
-    body: request.body ? request.body : undefined,
+    duplex: 'half',
   });
   
   if (!response.ok) {
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     method: request.method,
     headers,
     body: request.body ? request.body : undefined,
+    duplex: 'half',
   });
   
   if (!response.ok) {

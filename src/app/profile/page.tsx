@@ -15,10 +15,10 @@ interface UserProfile {
   id: string;
   email: string;
   name: string;
-  preferences: {
+  settings: {
     id: string;
     theme: string;
-    notificationsEnabled: boolean;
+    emailNotifications: boolean;
   };
 }
 
@@ -333,7 +333,7 @@ export default function ProfilePage() {
               <div className="flex justify-between py-1 text-sm">
                 <span className="text-gray-500">Account Created</span>
                 <span className="font-medium text-gray-900">
-                  {new Date(profile.preferences.id).toLocaleDateString()}
+                  {new Date(profile.settings.id).toLocaleDateString()}
                 </span>
               </div>
               <Separator />
