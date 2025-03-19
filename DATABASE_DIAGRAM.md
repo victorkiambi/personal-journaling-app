@@ -1,13 +1,10 @@
-# Database Schema Diagram
-
-```mermaid
 erDiagram
-    User ||--o{ Account : has
-    User ||--o{ Session : has
-    User ||--|| Profile : has
-    User ||--|| Settings : has
-    User ||--o{ Category : has
-    User ||--o{ JournalEntry : has
+User ||--o{ Account : has
+User ||--o{ Session : has
+User ||--|| Profile : has
+User ||--|| Settings : has
+User ||--o{ Category : has
+User ||--o{ JournalEntry : has
 
     User {
         string id PK
@@ -90,20 +87,3 @@ erDiagram
 
     JournalEntry }o--|| EntryMetadata : has
     JournalEntry }o--o{ Category : has
-```
-
-## Legend
-- `PK`: Primary Key
-- `FK`: Foreign Key
-- `UK`: Unique Key
-- `||--o{`: One-to-many relationship
-- `||--||`: One-to-one relationship
-- `}o--o{`: Many-to-many relationship
-
-## Notes
-1. All models include `createdAt` and `updatedAt` timestamps
-2. All IDs are CUID strings
-3. Cascade deletes are implemented for all relationships
-4. NextAuth.js tables (Account, Session, VerificationToken) are included
-5. User preferences and profile information are separated into their own models
-6. Journal entries can have multiple categories and metadata 
