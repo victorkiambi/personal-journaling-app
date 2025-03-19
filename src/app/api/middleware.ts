@@ -8,7 +8,7 @@ export async function withAuth(
   handler: (userId: string) => Promise<NextResponse>
 ) {
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const authHeader = headersList.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 

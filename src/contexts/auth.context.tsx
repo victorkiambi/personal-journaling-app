@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -12,11 +12,11 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
   loading: boolean;
   error: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  logout: () => void;
   clearError: () => void;
 }
 
@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PUBLIC_ROUTES = ['/', '/login', '/register'];
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,68 +33,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = () => setError(null);
 
+  // Initialize auth state
   useEffect(() => {
-    // Check for stored token and validate it
-    const checkAuth = async () => {
-      try {
-        // Only in browser environment
-        if (typeof window === 'undefined') {
-          setLoading(false);
-          return;
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setLoading(false);
+        if (!PUBLIC_ROUTES.includes(pathname)) {
+          router.replace('/login');
         }
-        
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setLoading(false);
-          
-          // If not on a public route, redirect to login
-          if (!PUBLIC_ROUTES.includes(pathname)) {
-            router.push('/login');
-          }
-          return;
-        }
+        return;
+      }
 
+      try {
         const response = await fetch('/api/auth/me', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-          
-          // If on a public auth route, redirect to journal
-          if (pathname === '/login' || pathname === '/register') {
-            router.push('/journal');
-          }
-        } else {
-          localStorage.removeItem('token');
-          if (!PUBLIC_ROUTES.includes(pathname)) {
-            router.push('/login');
-          }
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Authentication failed');
+        }
+
+        setUser(data.user);
+        if (PUBLIC_ROUTES.includes(pathname)) {
+          router.replace('/journal');
         }
       } catch (err) {
-        console.error('Auth check failed:', err);
+        console.error('Auth check error:', err);
+        localStorage.removeItem('token');
+        setUser(null);
         if (!PUBLIC_ROUTES.includes(pathname)) {
-          router.push('/login');
+          router.replace('/login');
         }
       } finally {
         setLoading(false);
       }
     };
 
-    checkAuth();
-  }, [pathname, router]);
+    initializeAuth();
+  }, []); // Only run once on mount
+
+  // Handle route protection
+  useEffect(() => {
+    if (!loading) {
+      const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
+      
+      if (!user && !isPublicRoute) {
+        router.replace('/login');
+      } else if (user && isPublicRoute) {
+        router.replace('/journal');
+      }
+    }
+  }, [user, loading, pathname, router]);
 
   const login = async (email: string, password: string) => {
     try {
-      setError(null);
       setLoading(true);
-      
-      if (!email || !password) {
-        throw new Error('Email and password are required');
-      }
+      clearError();
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -112,35 +112,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       localStorage.setItem('token', data.token);
       setUser(data.user);
-      
-      // If on a public auth route, redirect to journal
-      if (pathname === '/login' || pathname === '/register') {
-        router.push('/journal');
-      }
+      router.replace('/journal');
     } catch (err) {
       console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
-      throw err; // Re-throw to handle in the component
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (email: string, password: string, name: string) => {
     try {
-      setError(null);
       setLoading(true);
-      
-      if (!name || !email || !password) {
-        throw new Error('Name, email, and password are required');
-      }
+      clearError();
 
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ email, password, name }),
       });
 
       const data = await response.json();
@@ -151,15 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       localStorage.setItem('token', data.token);
       setUser(data.user);
-      
-      // If on a public auth route, redirect to journal
-      if (pathname === '/login' || pathname === '/register') {
-        router.push('/journal');
-      }
+      router.replace('/journal');
     } catch (err) {
       console.error('Registration error:', err);
       setError(err instanceof Error ? err.message : 'Registration failed');
-      throw err; // Re-throw to handle in the component
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -168,23 +156,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    
-    // If not on a public route, redirect to login
-    if (!PUBLIC_ROUTES.includes(pathname)) {
-      router.push('/login');
-    }
+    router.replace('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      register, 
-      logout, 
-      loading, 
-      error,
-      clearError 
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        login,
+        register,
+        logout,
+        clearError,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

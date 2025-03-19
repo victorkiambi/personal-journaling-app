@@ -8,22 +8,17 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, Plus, Calendar, Edit, Trash2, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { formatDate } from '@/lib/utils';
+import { Category } from '@/types/category';
 
 interface JournalEntry {
   id: string;
   title: string;
   content: string;
+  categoryIds: string[];
   createdAt: string;
   updatedAt: string;
-  categories: Array<{
-    id: string;
-    name: string;
-    color: string;
-  }>;
-  metadata?: {
-    wordCount: number;
-    readingTime: number;
-  };
 }
 
 interface PaginatedResponse {
@@ -42,142 +37,115 @@ interface ApiResponse<T> {
   message?: string;
 }
 
-export function JournalEntryList() {
+export default function JournalEntryList() {
+  const router = useRouter();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [categories, setCategories] = useState<Array<{id: string, name: string, color: string}>>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/v1/categories', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch categories');
-        }
-
-        const data = await response.json();
-        setCategories(data.data || []); // Handle the success wrapper from the categories API
-      } catch (err) {
-        console.error('Error fetching categories:', err);
-        toast.error('Failed to load categories');
-      }
-    };
-
     fetchCategories();
+    fetchEntries();
   }, []);
 
-  useEffect(() => {
-    const fetchEntries = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        let url = `/api/journal?page=${currentPage}&limit=10`;
-        
-        if (selectedCategory) {
-          url += `&categoryId=${selectedCategory}`;
-        }
-        
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch journal entries');
-        }
-
-        const result: ApiResponse<PaginatedResponse> = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.message || 'Failed to fetch journal entries');
-        }
-
-        setEntries(result.data.entries);
-        setTotalPages(result.data.pagination.pages);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-        toast.error('Failed to load journal entries');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEntries();
-  }, [selectedCategory, currentPage]);
-
-  const handleDeleteEntry = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this journal entry?')) {
-      return;
-    }
-    
+  const fetchCategories = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/journal/${id}`, {
-        method: 'DELETE',
+      const response = await fetch('/api/categories', {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete journal entry');
+        throw new Error('Failed to fetch categories');
       }
 
-      const result: ApiResponse<void> = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to delete journal entry');
-      }
-
-      setEntries(entries.filter(entry => entry.id !== id));
-      toast.success('Journal entry deleted successfully');
+      const data = await response.json();
+      setCategories(data.categories || []);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete journal entry');
+      console.error('Error fetching categories:', err);
+      toast.error('Failed to load categories');
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const fetchEntries = async () => {
     try {
-      return format(new Date(dateString), 'MMMM d, yyyy');
-    } catch (e) {
-      return dateString;
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/journal', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch entries');
+      }
+
+      const data = await response.json();
+      setEntries(data.data.entries || []);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching entries:', err);
+      setError('Failed to load entries');
+      setLoading(false);
     }
   };
+
+  const handleDelete = async (entryId: string) => {
+    try {
+      const response = await fetch(`/api/journal/${entryId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete entry');
+      }
+
+      const data = await response.json();
+      toast.success(data.message || 'Entry deleted successfully');
+      fetchEntries(); // Refresh the list
+    } catch (err) {
+      console.error('Error deleting entry:', err);
+      toast.error('Failed to delete entry');
+    }
+  };
+
+  const handleRetry = () => {
+    fetchCategories();
+    fetchEntries();
+  };
+
+  const filteredEntries = entries.filter(entry => {
+    if (!selectedCategory) return true;
+    return entry.categoryIds.includes(selectedCategory);
+  });
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <Card className="border-red-200 bg-red-50">
-        <CardContent className="pt-6">
-          <div className="text-center text-red-600 py-4">
-            <p>Error: {error}</p>
-            <Button 
-              variant="outline" 
-              className="mt-4" 
-              onClick={() => setLoading(true)}
-            >
-              Try Again
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center h-64">
+        <p className="text-red-500 mb-4">{error}</p>
+        <button
+          onClick={handleRetry}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Retry
+        </button>
+      </div>
     );
   }
 
@@ -185,169 +153,80 @@ export function JournalEntryList() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div className="flex flex-wrap gap-2">
-          <Button 
-            variant={selectedCategory === null ? "default" : "outline"}
+          <Button
+            variant={selectedCategory === null ? 'default' : 'outline'}
             size="sm"
-            onClick={() => {
-              setSelectedCategory(null);
-              setCurrentPage(1);
-            }}
+            onClick={() => setSelectedCategory(null)}
           >
             All Entries
           </Button>
           {categories.map(category => (
             <Button
               key={category.id}
-              variant={selectedCategory === category.id ? "default" : "outline"}
+              variant={selectedCategory === category.id ? 'default' : 'outline'}
               size="sm"
-              onClick={() => {
-                setSelectedCategory(category.id);
-                setCurrentPage(1);
-              }}
-              className="flex items-center gap-2"
+              onClick={() => setSelectedCategory(category.id)}
+              style={{ backgroundColor: selectedCategory === category.id ? category.color : undefined }}
             >
-              <span 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: category.color }}
-              />
               {category.name}
             </Button>
           ))}
         </div>
-        
-        <Link href="/journal/new">
-          <Button className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            New Entry
-          </Button>
-        </Link>
+        <Button onClick={() => router.push('/journal/new')}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Entry
+        </Button>
       </div>
 
-      <Separator />
+      <hr className="shrink-0 bg-border h-[1px] w-full" role="none" />
 
-      {entries.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 flex flex-col items-center justify-center py-12">
-            <div className="rounded-full bg-indigo-100 p-3 mb-4">
-              <Calendar className="h-6 w-6 text-indigo-700" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900">No journal entries yet</h3>
-            <p className="mt-2 text-sm text-gray-600 text-center max-w-md">
-              Start writing your first journal entry to begin your journaling journey.
-            </p>
-            <Link href="/journal/new" className="mt-6">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create your first entry
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-6">
-          {entries.map((entry) => (
-            <Card key={entry.id} className="overflow-hidden hover:shadow-md transition-shadow duration-200">
-              <CardHeader className="pb-3 flex flex-row justify-between items-start">
+      <div className="grid grid-cols-1 gap-6">
+        {filteredEntries.map(entry => {
+          const entryCategories = categories.filter(cat => entry.categoryIds.includes(cat.id));
+          return (
+            <div
+              key={entry.id}
+              className="p-6 bg-card text-card-foreground rounded-lg shadow-sm"
+            >
+              <div className="flex justify-between items-start mb-4">
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    {entry.categories.map(category => (
+                  <h3 className="text-lg font-semibold mb-2">{entry.title}</h3>
+                  <div className="flex gap-2 mb-2">
+                    {entryCategories.map(category => (
                       <span
                         key={category.id}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                        style={{
-                          backgroundColor: `${category.color}20`,
-                          color: category.color,
-                        }}
+                        className="px-2 py-1 rounded text-xs"
+                        style={{ backgroundColor: category.color }}
                       >
-                        <Tag className="h-3 w-3 mr-1" />
                         {category.name}
                       </span>
                     ))}
-                    <time className="text-xs text-gray-500">
-                      {formatDate(entry.createdAt)}
-                    </time>
                   </div>
-                  
-                  <CardTitle>
-                    <Link href={`/journal/${entry.id}`} className="hover:text-indigo-600 transition-colors">
-                      {entry.title}
-                    </Link>
-                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(entry.createdAt)}
+                  </p>
                 </div>
-                
                 <div className="flex gap-2">
-                  <Link href={`/journal/${entry.id}/edit`}>
-                    <Button variant="ghost" size="icon">
-                      <Edit className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </Link>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => handleDeleteEntry(entry.id)}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/journal/${entry.id}`)}
                   >
-                    <Trash2 className="h-4 w-4 text-gray-500" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(entry.id)}
+                  >
+                    Delete
                   </Button>
                 </div>
-              </CardHeader>
-              
-              <CardContent>
-                <p className="text-gray-600 line-clamp-3">
-                  {entry.content}
-                </p>
-              </CardContent>
-              
-              <CardFooter className="pt-0 border-t">
-                <Link
-                  href={`/journal/${entry.id}`}
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center"
-                >
-                  Read more
-                  <svg 
-                    className="ml-1 h-4 w-4" 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {totalPages > 1 && (
-        <div className="flex justify-center mt-6">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="fixed bottom-8 right-8">
-        <Link href="/journal/new">
-          <Button size="lg" className="rounded-full w-14 h-14 flex items-center justify-center shadow-lg">
-            <Plus className="h-6 w-6" />
-          </Button>
-        </Link>
+              </div>
+              <p className="text-sm line-clamp-3">{entry.content}</p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

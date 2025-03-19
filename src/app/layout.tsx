@@ -1,9 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import Navigation from '@/components/layout/Navigation';
-import { AuthProvider } from '@/contexts/auth.context';
-import { Toaster } from 'sonner';
+import { Providers } from './providers';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,11 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <Navigation />
-          <main className="min-h-screen">{children}</main>
-          <Toaster />
-        </AuthProvider>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

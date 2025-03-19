@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { 
   Home, 
@@ -16,11 +16,13 @@ import {
   BarChart 
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth.context';
+import { Loader2 } from 'lucide-react';
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const router = useRouter();
+  const { user, loading, logout } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -37,6 +39,31 @@ export default function Navigation() {
   const isActive = (path: string) => {
     return pathname === path;
   };
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    closeMenu();
+  }, [pathname]);
+
+  // Don't render navigation while loading
+  if (loading) {
+    return (
+      <nav className="bg-background border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
+  // Don't render navigation for public routes
+  if (!user && ['/login', '/register'].includes(pathname)) {
+    return null;
+  }
 
   return (
     <nav className="bg-background border-b">

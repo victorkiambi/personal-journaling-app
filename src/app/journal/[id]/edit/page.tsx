@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { JournalEntryForm } from '@/components/journal/JournalEntryForm';
+import JournalEntryForm from '@/components/journal/JournalEntryForm';
 
 export default function EditJournalEntryPage() {
   const params = useParams();

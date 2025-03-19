@@ -1,4 +1,6 @@
-import { JournalEntryForm } from '@/components/journal/JournalEntryForm';
+'use client';
+
+import JournalEntryForm from '@/components/journal/JournalEntryForm';
 
 export default function NewJournalEntryPage() {
   return (
