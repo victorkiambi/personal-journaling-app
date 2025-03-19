@@ -103,11 +103,16 @@ model JournalEntry {
 }
 
 model EntryMetadata {
-  id          String       @id @default(cuid())
-  entryId     String       @unique
-  wordCount   Int
-  readingTime Int
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  id                 String       @id @default(cuid())
+  entryId            String       @unique
+  wordCount          Int          @default(0)
+  readingTime        Int          @default(0)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  mood               String?
+  sentimentMagnitude Float?
+  sentimentScore     Float?
+  entry              JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
 }

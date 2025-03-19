@@ -1,48 +1,103 @@
-import { format, eachDayOfInterval, subMonths, startOfDay, endOfDay, parseISO, isWithinInterval, differenceInDays } from 'date-fns';
+import { subMonths, startOfDay, endOfDay, subDays, subYears } from 'date-fns';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import type { JournalEntry } from "@prisma/client";
+
+type EntryMetadataWithSentiment = {
+  wordCount: number;
+  readingTime: number;
+  sentimentScore: number | null;
+  sentimentMagnitude: number | null;
+  mood: string | null;
+};
+
+type EntryWithMetadata = JournalEntry & {
+  metadata: EntryMetadataWithSentiment | null;
+};
+
+type LongestEntry = EntryWithMetadata & { wordCount: number };
+
+type MonthlyActivity = {
+  month: string;
+  entries: number;
+  wordCount: number;
+};
+
+type TimeOfDayPattern = {
+  hour: number;
+  count: number;
+  wordCount: number;
+};
+
+type WritingTrend = {
+  date: string;
+  wordCount: number;
+};
 
 export class AnalyticsService {
   /**
    * Get analytics data for a user
    */
-  static async getAnalytics(userId: string, data: z.infer<typeof import('@/lib/validation').analyticsQuerySchema>) {
-    const { startDate, endDate, categoryId, timeRange } = data;
-
-    // Get date range
+  static async getAnalytics(
+    userId: string,
+    options: {
+      timeRange: 'day' | 'week' | 'month' | 'year';
+      categoryId?: string;
+    }
+  ) {
+    const { timeRange, categoryId } = options;
     const now = new Date();
-    let start = startDate ? new Date(startDate) : new Date();
-    let end = endDate ? new Date(endDate) : now;
+    let start = new Date();
 
-    // Adjust date range based on timeRange
+    // Adjust date range
     switch (timeRange) {
       case 'day':
         start = startOfDay(now);
-        end = endOfDay(now);
         break;
       case 'week':
-        start = startOfDay(new Date(now.setDate(now.getDate() - 7)));
-        end = endOfDay(new Date());
+        start = startOfDay(subDays(now, 7));
         break;
       case 'month':
-        start = startOfDay(new Date(now.setMonth(now.getMonth() - 1)));
-        end = endOfDay(new Date());
+        start = startOfDay(subMonths(now, 1));
         break;
       case 'year':
-        start = startOfDay(new Date(now.setFullYear(now.getFullYear() - 1)));
-        end = endOfDay(new Date());
+        start = startOfDay(subYears(now, 1));
         break;
     }
 
+    const end = endOfDay(now);
+
+    // Add debug logging for date range
+    console.log('Date Range:', {
+      start: start.toISOString(),
+      end: end.toISOString()
+    });
+
     // Build where clause
-    const where = {
+    const where: any = {
       userId,
       createdAt: {
         gte: start,
-        lte: end,
-      },
-      ...(categoryId && { categoryId }),
+        lte: end
+      }
     };
+
+    // Add debug logging for query parameters
+    console.log('Query Parameters:', {
+      userId,
+      timeRange,
+      categoryId,
+      where,
+      start: start.toISOString(),
+      end: end.toISOString()
+    });
+
+    if (categoryId) {
+      where.categories = {
+        some: {
+          id: categoryId
+        }
+      };
+    }
 
     // Get analytics data
     const [entries, categories] = await Promise.all([
@@ -56,14 +111,17 @@ export class AnalyticsService {
           metadata: {
             select: {
               wordCount: true,
-              readingTime: true
+              readingTime: true,
+              sentimentScore: true,
+              sentimentMagnitude: true,
+              mood: true
             }
           }
         },
         orderBy: {
           createdAt: 'desc'
         }
-      }),
+      }) as Promise<EntryWithMetadata[]>,
       // Get categories with entry counts
       prisma.category.findMany({
         where: { userId },
@@ -80,6 +138,14 @@ export class AnalyticsService {
       })
     ]);
 
+    // Add debug logging for entries
+    console.log('Entries with metadata:', entries.map(e => ({
+      id: e.id,
+      title: e.title,
+      createdAt: e.createdAt.toISOString(),
+      metadata: e.metadata
+    })));
+
     // Calculate totals
     const totalWordCount = entries.reduce((sum, entry) => {
       const wordCount = entry.metadata?.wordCount || 0;
@@ -88,12 +154,71 @@ export class AnalyticsService {
 
     const avgWordCount = entries.length > 0 ? totalWordCount / entries.length : 0;
 
+    // Calculate sentiment statistics
+    const sentimentStats = entries.reduce((stats, entry) => {
+      const sentiment = entry.metadata?.sentimentScore ?? null;
+      const mood = entry.metadata?.mood ?? null;
+      
+      // Debug log for each entry
+      console.log('Processing entry:', {
+        id: entry.id,
+        title: entry.title,
+        sentiment,
+        mood,
+        metadata: entry.metadata
+      });
+      
+      // Include entries that have sentiment data, even if score is 0
+      if (sentiment !== null && mood !== null) {
+        stats.totalSentiment += sentiment;
+        stats.totalEntries += 1;
+        stats.moodCounts[mood] = (stats.moodCounts[mood] || 0) + 1;
+        
+        // Debug log for successful sentiment processing
+        console.log('Added sentiment:', {
+          entryId: entry.id,
+          currentTotal: stats.totalSentiment,
+          currentCount: stats.totalEntries,
+          currentMoods: stats.moodCounts
+        });
+      } else {
+        // Debug log for skipped entries
+        console.log('Skipped entry:', {
+          entryId: entry.id,
+          reason: sentiment === null ? 'missing sentiment' : 'missing mood'
+        });
+      }
+      
+      return stats;
+    }, { totalSentiment: 0, totalEntries: 0, moodCounts: {} as Record<string, number> });
+
+    const avgSentiment = sentimentStats.totalEntries > 0 ? sentimentStats.totalSentiment / sentimentStats.totalEntries : 0;
+
+    // Add debug logging for sentiment stats
+    console.log('Final Sentiment Stats:', {
+      totalEntries: sentimentStats.totalEntries,
+      totalSentiment: sentimentStats.totalSentiment,
+      avgSentiment,
+      moodCounts: sentimentStats.moodCounts,
+      hasSentiment: entries.some(e => e.metadata?.sentimentScore !== null && e.metadata?.mood !== null),
+      entries: entries.map(e => ({
+        id: e.id,
+        title: e.title,
+        sentiment: e.metadata?.sentimentScore ?? null,
+        mood: e.metadata?.mood ?? null,
+        metadata: e.metadata
+      }))
+    });
+
     // Find longest entry
     const longestEntry = entries.length > 0 
-      ? entries.reduce((max, entry) => {
-          const wordCount = entry.metadata?.wordCount || 0;
-          return wordCount > max.wordCount ? { ...entry, wordCount } : max;
-        }, { wordCount: 0 } as any)
+      ? entries.reduce<LongestEntry>((max, entry) => {
+          const currentWordCount = entry.metadata?.wordCount || 0;
+          if (currentWordCount > (max.wordCount || 0)) {
+            return { ...entry, wordCount: currentWordCount };
+          }
+          return max;
+        }, { ...entries[0], wordCount: entries[0].metadata?.wordCount || 0 })
       : null;
 
     // Calculate writing streak
@@ -129,6 +254,10 @@ export class AnalyticsService {
           title: longestEntry.title,
           wordCount: longestEntry.wordCount,
           createdAt: longestEntry.createdAt.toISOString()
+        } : null,
+        sentiment: sentimentStats.totalEntries > 0 ? {
+          averageScore: avgSentiment,
+          moodDistribution: sentimentStats.moodCounts
         } : null
       },
       categoryDistribution,
@@ -140,31 +269,37 @@ export class AnalyticsService {
     };
   }
 
-  private static calculateMonthlyActivity(entries: any[]): { month: string; entries: number; wordCount: number }[] {
+  private static calculateMonthlyActivity(entries: EntryWithMetadata[]): MonthlyActivity[] {
     const monthlyData = new Map<string, { entries: number; wordCount: number }>();
 
     entries.forEach(entry => {
-      const monthKey = format(entry.createdAt, 'MMM yyyy');
-      const currentData = monthlyData.get(monthKey) || { entries: 0, wordCount: 0 };
+      const month = entry.createdAt.toISOString().slice(0, 7); // YYYY-MM format
+      const current = monthlyData.get(month) || { entries: 0, wordCount: 0 };
       
-      monthlyData.set(monthKey, {
-        entries: currentData.entries + 1,
-        wordCount: currentData.wordCount + (entry.metadata?.wordCount || 0)
+      monthlyData.set(month, {
+        entries: current.entries + 1,
+        wordCount: current.wordCount + (entry.metadata?.wordCount || 0)
       });
     });
 
-    return Array.from(monthlyData.entries()).map(([month, data]) => ({
-      month,
-      entries: data.entries,
-      wordCount: data.wordCount
-    }));
+    return Array.from(monthlyData.entries())
+      .map(([month, data]) => ({
+        month,
+        entries: data.entries,
+        wordCount: data.wordCount
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
   }
 
   private static async calculateWritingStreak(userId: string): Promise<number> {
     const entries = await prisma.journalEntry.findMany({
       where: { userId },
-      select: { createdAt: true },
-      orderBy: { createdAt: 'desc' }
+      select: {
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
     });
 
     if (entries.length === 0) return 0;
@@ -190,56 +325,37 @@ export class AnalyticsService {
     return streak;
   }
 
-  private static async getTimeOfDayPatterns(userId: string) {
+  private static async getTimeOfDayPatterns(userId: string): Promise<TimeOfDayPattern[]> {
     const entries = await prisma.journalEntry.findMany({
       where: { userId },
       select: {
-        createdAt: true
+        createdAt: true,
+        metadata: {
+          select: {
+            wordCount: true
+          }
+        }
       }
     });
-    
-    // Define time periods
-    const timePeriods = [
-      { name: 'Morning (5am-12pm)', start: 5, end: 11, count: 0 },
-      { name: 'Afternoon (12pm-5pm)', start: 12, end: 16, count: 0 },
-      { name: 'Evening (5pm-9pm)', start: 17, end: 20, count: 0 },
-      { name: 'Night (9pm-5am)', start: 21, end: 4, count: 0 }
-    ];
-    
-    // Count entries in each time period
+
+    const patterns = new Array(24).fill(0).map(() => ({ count: 0, wordCount: 0 }));
+
     entries.forEach(entry => {
       const hour = entry.createdAt.getHours();
-      
-      for (const period of timePeriods) {
-        // Handle night period that spans across midnight
-        if (period.start > period.end) {
-          if (hour >= period.start || hour <= period.end) {
-            period.count += 1;
-            break;
-          }
-        } else if (hour >= period.start && hour <= period.end) {
-          period.count += 1;
-          break;
-        }
-      }
+      patterns[hour].count++;
+      patterns[hour].wordCount += entry.metadata?.wordCount || 0;
     });
-    
-    return timePeriods;
+
+    return patterns.map((pattern, hour) => ({
+      hour,
+      count: pattern.count,
+      wordCount: pattern.wordCount
+    }));
   }
 
-  private static async getWritingTrends(userId: string, months = 6) {
-    const endDate = new Date();
-    const startDate = subMonths(endDate, months);
-    
-    // Get all entries with metadata
+  private static async getWritingTrends(userId: string): Promise<WritingTrend[]> {
     const entries = await prisma.journalEntry.findMany({
-      where: {
-        userId,
-        createdAt: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
+      where: { userId },
       select: {
         createdAt: true,
         metadata: {
@@ -252,40 +368,10 @@ export class AnalyticsService {
         createdAt: 'asc'
       }
     });
-    
-    // Group by month
-    const monthlyData = new Map();
-    
-    // Initialize all months
-    for (let i = 0; i <= months; i++) {
-      const date = subMonths(endDate, i);
-      const monthKey = format(date, 'yyyy-MM');
-      monthlyData.set(monthKey, { 
-        month: format(date, 'MMM yyyy'),
-        entryCount: 0,
-        totalWords: 0,
-        avgWordsPerEntry: 0 
-      });
-    }
-    
-    // Process entries
-    entries.forEach(entry => {
-      const monthKey = format(entry.createdAt, 'yyyy-MM');
-      const data = monthlyData.get(monthKey);
-      
-      if (data) {
-        data.entryCount += 1;
-        data.totalWords += entry.metadata?.wordCount || 0;
-        data.avgWordsPerEntry = Math.round(data.totalWords / data.entryCount);
-      }
-    });
-    
-    // Convert to array and sort by date
-    return Array.from(monthlyData.values())
-      .sort((a, b) => {
-        const dateA = parseISO(`${a.month}-01`);
-        const dateB = parseISO(`${b.month}-01`);
-        return dateA.getTime() - dateB.getTime();
-      });
+
+    return entries.map(entry => ({
+      date: entry.createdAt.toISOString(),
+      wordCount: entry.metadata?.wordCount || 0
+    }));
   }
 } 
