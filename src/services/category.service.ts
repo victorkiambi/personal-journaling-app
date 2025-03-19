@@ -1,104 +1,35 @@
-import { PrismaClient } from '@prisma/client';
-import { CategoryData } from '@/types';
 import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
 
 export class CategoryService {
-  static async createCategory(userId: string, data: CategoryData) {
-    const existingCategory = await prisma.category.findFirst({
-      where: {
-        userId,
-        name: data.name
-      }
+  static async getCategories(userId: string) {
+    const categories = await prisma.category.findMany({
+      where: { userId },
+      orderBy: { name: 'asc' },
     });
 
-    if (existingCategory) {
-      throw new Error('Category with this name already exists');
-    }
+    return categories;
+  }
 
+  static async createCategory(userId: string, data: z.infer<typeof import('@/lib/validation').categorySchema>) {
+    const { color, ...rest } = data;
     const category = await prisma.category.create({
       data: {
+        ...rest,
         userId,
-        name: data.name,
-        color: data.color
+        color: color || '#000000', // Default color if not provided
       },
-      include: {
-        journalEntries: true
-      }
     });
 
     return category;
-  }
-
-  static async updateCategory(userId: string, categoryId: string, data: Partial<CategoryData>) {
-    const category = await prisma.category.findFirst({
-      where: {
-        id: categoryId,
-        userId
-      }
-    });
-
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    if (data.name) {
-      const existingCategory = await prisma.category.findFirst({
-        where: {
-          userId,
-          name: data.name,
-          id: { not: categoryId }
-        }
-      });
-
-      if (existingCategory) {
-        throw new Error('Category with this name already exists');
-      }
-    }
-
-    const updatedCategory = await prisma.category.update({
-      where: { id: categoryId },
-      data: {
-        name: data.name,
-        color: data.color
-      },
-      include: {
-        journalEntries: true
-      }
-    });
-
-    return updatedCategory;
-  }
-
-  static async deleteCategory(userId: string, categoryId: string) {
-    const category = await prisma.category.findFirst({
-      where: {
-        id: categoryId,
-        userId
-      }
-    });
-
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    await prisma.category.delete({
-      where: { id: categoryId }
-    });
   }
 
   static async getCategory(userId: string, categoryId: string) {
     const category = await prisma.category.findFirst({
       where: {
         id: categoryId,
-        userId
+        userId,
       },
-      include: {
-        journalEntries: {
-          include: {
-            metadata: true
-          }
-        }
-      }
     });
 
     if (!category) {
@@ -108,37 +39,28 @@ export class CategoryService {
     return category;
   }
 
-  static async getCategories(userId: string) {
-    const categories = await prisma.category.findMany({
-      where: { userId },
-      include: {
-        journalEntries: {
-          include: {
-            metadata: true
-          }
-        },
-        _count: {
-          select: { journalEntries: true }
-        }
+  static async updateCategory(userId: string, categoryId: string, data: z.infer<typeof import('@/lib/validation').categorySchema>) {
+    const { color, ...rest } = data;
+    const category = await prisma.category.update({
+      where: {
+        id: categoryId,
+        userId,
       },
-      orderBy: { name: 'asc' }
+      data: {
+        ...rest,
+        color: color || '#000000', // Default color if not provided
+      },
     });
 
-    return categories;
+    return category;
   }
 
-  static async getCategoryHierarchy(userId: string) {
-    const categories = await this.getCategories(userId);
-    
-    const buildHierarchy = (parentId: string | null = null): any[] => {
-      return categories
-        .filter(category => category.parentId === parentId)
-        .map(category => ({
-          ...category,
-          children: buildHierarchy(category.id)
-        }));
-    };
-
-    return buildHierarchy();
+  static async deleteCategory(userId: string, categoryId: string) {
+    await prisma.category.delete({
+      where: {
+        id: categoryId,
+        userId,
+      },
+    });
   }
 } 

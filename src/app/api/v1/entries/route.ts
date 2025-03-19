@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JournalService } from '@/services/journal.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
+import { validateRequest, journalEntrySchema, sanitizeHtml, handleValidationError } from '@/lib/validation';
 
-export async function POST(request: NextRequest) {
-  return withAuth(request, async (userId) => {
-    try {
-      const body = await request.json();
-      const entry = await JournalService.createEntry(userId, body);
-      
-      return NextResponse.json({
-        success: true,
-        data: entry
-      });
-    } catch (error) {
-      return handleApiError(error);
-    }
-  });
-}
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '2mb',
+    },
+  },
+  maxDuration: 30, // 30 seconds
+};
 
 export async function GET(request: NextRequest) {
   return withAuth(request, async (userId) => {
@@ -24,24 +18,57 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url);
       const page = parseInt(searchParams.get('page') || '1');
       const pageSize = parseInt(searchParams.get('pageSize') || '10');
-      const categoryId = searchParams.get('categoryId') || undefined;
-      const startDate = searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined;
-      const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : undefined;
-      const searchQuery = searchParams.get('search') || undefined;
+      const categoryId = searchParams.get('categoryId');
+      const startDate = searchParams.get('startDate');
+      const endDate = searchParams.get('endDate');
+      const search = searchParams.get('search');
 
-      const entries = await JournalService.getEntries(userId, page, pageSize, {
-        categoryId,
-        startDate,
-        endDate,
-        searchQuery
-      });
-      
+      const entries = await JournalService.getEntries(
+        userId,
+        page,
+        pageSize,
+        {
+          categoryId: categoryId || undefined,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+          searchQuery: search ? sanitizeText(search) : undefined,
+        }
+      );
+
       return NextResponse.json({
         success: true,
         data: entries
       });
     } catch (error) {
       return handleApiError(error);
+    }
+  });
+}
+
+export async function POST(request: NextRequest) {
+  return withAuth(request, async (userId) => {
+    try {
+      const body = await request.json();
+      
+      // Validate request body
+      const validatedData = await validateRequest(journalEntrySchema, body);
+      
+      // Sanitize content
+      const sanitizedContent = sanitizeHtml(validatedData.content);
+      const sanitizedTitle = sanitizeText(validatedData.title);
+
+      const entry = await JournalService.createEntry(userId, {
+        ...validatedData,
+        title: sanitizedTitle,
+        content: sanitizedContent,
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: entry
+      });
+    } catch (error) {
+      return handleValidationError(error);
     }
   });
 } 

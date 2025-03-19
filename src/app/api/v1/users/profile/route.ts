@@ -1,38 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { UserService } from '@/services/user.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
+import { validateRequest, profileSchema, sanitizeText, handleValidationError } from '@/lib/validation';
 
-const prisma = new PrismaClient();
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+  maxDuration: 30, // 30 seconds
+};
 
 export async function GET(request: NextRequest) {
   return withAuth(request, async (userId) => {
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          settings: {
-            select: {
-              id: true,
-              theme: true,
-              emailNotifications: true,
-            },
-          },
-        },
-      });
-
-      if (!user) {
-        return NextResponse.json(
-          { message: 'User not found' },
-          { status: 404 }
-        );
-      }
-
+      const profile = await UserService.getProfile(userId);
       return NextResponse.json({
         success: true,
-        data: user
+        data: profile
       });
     } catch (error) {
       return handleApiError(error);
@@ -44,38 +30,26 @@ export async function PUT(request: NextRequest) {
   return withAuth(request, async (userId) => {
     try {
       const body = await request.json();
-      const { name } = body;
+      
+      // Validate request body
+      const validatedData = await validateRequest(profileSchema, body);
+      
+      // Sanitize input
+      const sanitizedName = sanitizeText(validatedData.name);
+      const sanitizedBio = validatedData.bio ? sanitizeText(validatedData.bio) : undefined;
 
-      if (!name?.trim()) {
-        return NextResponse.json(
-          { message: 'Name is required' },
-          { status: 400 }
-        );
-      }
-
-      const user = await prisma.user.update({
-        where: { id: userId },
-        data: { name },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          settings: {
-            select: {
-              id: true,
-              theme: true,
-              emailNotifications: true,
-            },
-          },
-        },
+      const profile = await UserService.updateProfile(userId, {
+        ...validatedData,
+        name: sanitizedName,
+        bio: sanitizedBio,
       });
 
       return NextResponse.json({
         success: true,
-        data: user
+        data: profile
       });
     } catch (error) {
-      return handleApiError(error);
+      return handleValidationError(error);
     }
   });
 } 

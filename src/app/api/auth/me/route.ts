@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { UserService } from '@/services/user.service';
+import { AuthService } from '@/services/auth.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
 import { validateRequest, userSchema, sanitizeText, handleValidationError } from '@/lib/validation';
 
@@ -15,7 +15,7 @@ export const config = {
 export async function GET(request: NextRequest) {
   return withAuth(request, async (userId) => {
     try {
-      const user = await UserService.getUser(userId);
+      const user = await AuthService.getCurrentUser(userId);
       return NextResponse.json({
         success: true,
         data: user
@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
       // Sanitize input
       const sanitizedName = sanitizeText(validatedData.name);
 
-      const user = await UserService.updateUser(userId, {
+      const user = await AuthService.updateCurrentUser(userId, {
         ...validatedData,
         name: sanitizedName,
       });

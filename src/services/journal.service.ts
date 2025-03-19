@@ -170,8 +170,8 @@ export class JournalService {
 
   static async getEntries(
     userId: string,
-    page = 1,
-    pageSize = 10,
+    page: number = 1,
+    pageSize: number = 10,
     filters?: {
       categoryId?: string;
       startDate?: Date;
@@ -208,6 +208,9 @@ export class JournalService {
         })
       };
 
+      // Calculate skip value
+      const skip = (page - 1) * pageSize;
+
       // Run count and findMany in parallel for better performance
       const [total, items] = await Promise.all([
         tx.journalEntry.count({ where }),
@@ -228,7 +231,7 @@ export class JournalService {
               }
             }
           },
-          skip: (page - 1) * pageSize,
+          skip,
           take: pageSize,
           orderBy: { createdAt: 'desc' }
         })

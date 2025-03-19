@@ -1,167 +1,233 @@
-import { PrismaClient } from '@prisma/client';
-import { startOfMonth, endOfMonth, format, eachDayOfInterval, subMonths, startOfDay, endOfDay, parseISO, isWithinInterval, differenceInDays } from 'date-fns';
-
-const prisma = new PrismaClient();
+import { format, eachDayOfInterval, subMonths, startOfDay, endOfDay, parseISO, isWithinInterval, differenceInDays } from 'date-fns';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
 
 export class AnalyticsService {
   /**
-   * Get the total count and metrics for all journal entries by a user
+   * Get analytics data for a user
    */
-  static async getJournalSummary(userId: string) {
-    // Get total entries
-    const totalEntries = await prisma.journalEntry.count({
-      where: { userId }
-    });
+  static async getAnalytics(userId: string, data: z.infer<typeof import('@/lib/validation').analyticsQuerySchema>) {
+    const { startDate, endDate, categoryId, timeRange } = data;
 
-    // Get word count data
-    const entriesWithMetadata = await prisma.journalEntry.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        createdAt: true,
-        metadata: {
-          select: {
-            wordCount: true,
-            readingTime: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    // Get date range
+    const now = new Date();
+    let start = startDate ? new Date(startDate) : new Date();
+    let end = endDate ? new Date(endDate) : now;
 
-    let totalWords = 0;
-    let avgWordsPerEntry = 0;
-    let longestEntry = 0;
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let avgWordsPerDay = 0;
-
-    if (entriesWithMetadata.length > 0) {
-      // Calculate word count metrics
-      totalWords = entriesWithMetadata.reduce((sum, entry) => sum + (entry.metadata?.wordCount || 0), 0);
-      avgWordsPerEntry = Math.round(totalWords / entriesWithMetadata.length);
-      longestEntry = Math.max(...entriesWithMetadata.map(entry => entry.metadata?.wordCount || 0));
-
-      // Calculate writing streak
-      const today = startOfDay(new Date());
-      let previousDate = startOfDay(entriesWithMetadata[0].createdAt);
-      let streak = 1;
-      let maxStreak = 1;
-
-      for (let i = 1; i < entriesWithMetadata.length; i++) {
-        const currentDate = startOfDay(entriesWithMetadata[i].createdAt);
-        const daysDiff = differenceInDays(previousDate, currentDate);
-
-        if (daysDiff === 1) {
-          streak++;
-          maxStreak = Math.max(maxStreak, streak);
-        } else {
-          streak = 1;
-        }
-
-        previousDate = currentDate;
-      }
-
-      // Check if current streak is still active
-      const lastEntryDate = startOfDay(entriesWithMetadata[0].createdAt);
-      const daysSinceLastEntry = differenceInDays(today, lastEntryDate);
-      currentStreak = daysSinceLastEntry === 0 ? streak : 0;
-      longestStreak = maxStreak;
-
-      // Calculate average words per day
-      const firstEntryDate = startOfDay(entriesWithMetadata[entriesWithMetadata.length - 1].createdAt);
-      const totalDays = Math.max(1, differenceInDays(today, firstEntryDate) + 1);
-      avgWordsPerDay = Math.round(totalWords / totalDays);
+    // Adjust date range based on timeRange
+    switch (timeRange) {
+      case 'day':
+        start = startOfDay(now);
+        end = endOfDay(now);
+        break;
+      case 'week':
+        start = startOfDay(new Date(now.setDate(now.getDate() - 7)));
+        end = endOfDay(new Date());
+        break;
+      case 'month':
+        start = startOfDay(new Date(now.setMonth(now.getMonth() - 1)));
+        end = endOfDay(new Date());
+        break;
+      case 'year':
+        start = startOfDay(new Date(now.setFullYear(now.getFullYear() - 1)));
+        end = endOfDay(new Date());
+        break;
     }
 
+    // Build where clause
+    const where = {
+      userId,
+      createdAt: {
+        gte: start,
+        lte: end,
+      },
+      ...(categoryId && { categoryId }),
+    };
+
+    // Get analytics data
+    const [entries, categories] = await Promise.all([
+      // Get all entries with their metadata
+      prisma.journalEntry.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          metadata: {
+            select: {
+              wordCount: true,
+              readingTime: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      // Get categories with entry counts
+      prisma.category.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          _count: {
+            select: {
+              journalEntries: true
+            }
+          }
+        }
+      })
+    ]);
+
+    // Calculate totals
+    const totalWordCount = entries.reduce((sum, entry) => {
+      const wordCount = entry.metadata?.wordCount || 0;
+      return sum + wordCount;
+    }, 0);
+
+    const avgWordCount = entries.length > 0 ? totalWordCount / entries.length : 0;
+
+    // Find longest entry
+    const longestEntry = entries.length > 0 
+      ? entries.reduce((max, entry) => {
+          const wordCount = entry.metadata?.wordCount || 0;
+          return wordCount > max.wordCount ? { ...entry, wordCount } : max;
+        }, { wordCount: 0 } as any)
+      : null;
+
+    // Calculate writing streak
+    const streak = await this.calculateWritingStreak(userId);
+
+    // Calculate average words per day
+    const daysDiff = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    const avgWordsPerDay = totalWordCount / daysDiff;
+
+    // Transform category data
+    const categoryDistribution = categories.map(category => ({
+      category: category.name,
+      count: category._count.journalEntries,
+      color: category.color
+    }));
+
+    // Calculate monthly activity
+    const monthlyActivity = this.calculateMonthlyActivity(entries);
+
+    // Get time of day patterns
+    const timeOfDayPatterns = await this.getTimeOfDayPatterns(userId);
+
+    // Get writing trends
+    const writingTrends = await this.getWritingTrends(userId);
+
     return {
-      totalEntries,
-      totalWords,
-      avgWordsPerEntry,
-      longestEntry,
-      currentStreak,
-      longestStreak,
-      avgWordsPerDay
+      summary: {
+        totalEntries: entries.length,
+        totalWordCount: Math.round(totalWordCount),
+        averageWordsPerEntry: Math.round(avgWordCount),
+        longestEntry: longestEntry ? {
+          id: longestEntry.id,
+          title: longestEntry.title,
+          wordCount: longestEntry.wordCount,
+          createdAt: longestEntry.createdAt.toISOString()
+        } : null
+      },
+      categoryDistribution,
+      monthlyActivity,
+      writingStreak: streak,
+      averageWordsPerDay: Math.round(avgWordsPerDay),
+      timeOfDayPatterns,
+      writingTrends
     };
   }
 
-  /**
-   * Get category distribution data for charts
-   */
-  static async getCategoryDistribution(userId: string) {
-    const categories = await prisma.category.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        name: true,
-        color: true,
-        _count: {
-          select: {
-            journalEntries: true
-          }
-        }
-      }
+  private static calculateMonthlyActivity(entries: any[]): { month: string; entries: number; wordCount: number }[] {
+    const monthlyData = new Map<string, { entries: number; wordCount: number }>();
+
+    entries.forEach(entry => {
+      const monthKey = format(entry.createdAt, 'MMM yyyy');
+      const currentData = monthlyData.get(monthKey) || { entries: 0, wordCount: 0 };
+      
+      monthlyData.set(monthKey, {
+        entries: currentData.entries + 1,
+        wordCount: currentData.wordCount + (entry.metadata?.wordCount || 0)
+      });
     });
 
-    // Transform the data for the chart
-    return categories.map(category => ({
-      name: category.name,
-      value: category._count.journalEntries,
-      color: category.color
+    return Array.from(monthlyData.entries()).map(([month, data]) => ({
+      month,
+      entries: data.entries,
+      wordCount: data.wordCount
     }));
   }
 
-  /**
-   * Get entry frequency data for heatmap/calendar
-   */
-  static async getEntryFrequency(userId: string, months = 6) {
-    const endDate = new Date();
-    const startDate = subMonths(endDate, months);
-
-    // Get all entries in the date range
+  private static async calculateWritingStreak(userId: string): Promise<number> {
     const entries = await prisma.journalEntry.findMany({
-      where: {
-        userId,
-        createdAt: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
+      where: { userId },
+      select: { createdAt: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (entries.length === 0) return 0;
+
+    let streak = 1;
+    let currentDate = new Date(entries[0].createdAt);
+    currentDate.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i < entries.length; i++) {
+      const entryDate = new Date(entries[i].createdAt);
+      entryDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.floor((currentDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        streak++;
+        currentDate = entryDate;
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  }
+
+  private static async getTimeOfDayPatterns(userId: string) {
+    const entries = await prisma.journalEntry.findMany({
+      where: { userId },
       select: {
         createdAt: true
       }
     });
-
-    // Create a map of dates to entry counts
-    const dateCountMap = new Map();
     
-    // Initialize all days with 0 count
-    const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
-    dateRange.forEach(date => {
-      const dateKey = format(date, 'yyyy-MM-dd');
-      dateCountMap.set(dateKey, 0);
-    });
+    // Define time periods
+    const timePeriods = [
+      { name: 'Morning (5am-12pm)', start: 5, end: 11, count: 0 },
+      { name: 'Afternoon (12pm-5pm)', start: 12, end: 16, count: 0 },
+      { name: 'Evening (5pm-9pm)', start: 17, end: 20, count: 0 },
+      { name: 'Night (9pm-5am)', start: 21, end: 4, count: 0 }
+    ];
     
-    // Count entries per day
+    // Count entries in each time period
     entries.forEach(entry => {
-      const dateKey = format(entry.createdAt, 'yyyy-MM-dd');
-      const currentCount = dateCountMap.get(dateKey) || 0;
-      dateCountMap.set(dateKey, currentCount + 1);
+      const hour = entry.createdAt.getHours();
+      
+      for (const period of timePeriods) {
+        // Handle night period that spans across midnight
+        if (period.start > period.end) {
+          if (hour >= period.start || hour <= period.end) {
+            period.count += 1;
+            break;
+          }
+        } else if (hour >= period.start && hour <= period.end) {
+          period.count += 1;
+          break;
+        }
+      }
     });
     
-    // Transform to array for the chart
-    return Array.from(dateCountMap.entries()).map(([date, count]) => ({
-      date,
-      count
-    }));
+    return timePeriods;
   }
 
-  /**
-   * Get writing trends over time (words per entry, entries per month)
-   */
-  static async getWritingTrends(userId: string, months = 6) {
+  private static async getWritingTrends(userId: string, months = 6) {
     const endDate = new Date();
     const startDate = subMonths(endDate, months);
     
@@ -221,45 +287,5 @@ export class AnalyticsService {
         const dateB = parseISO(`${b.month}-01`);
         return dateA.getTime() - dateB.getTime();
       });
-  }
-
-  /**
-   * Get time-of-day writing patterns
-   */
-  static async getTimeOfDayPatterns(userId: string) {
-    const entries = await prisma.journalEntry.findMany({
-      where: { userId },
-      select: {
-        createdAt: true
-      }
-    });
-    
-    // Define time periods
-    const timePeriods = [
-      { name: 'Morning (5am-12pm)', start: 5, end: 11, count: 0 },
-      { name: 'Afternoon (12pm-5pm)', start: 12, end: 16, count: 0 },
-      { name: 'Evening (5pm-9pm)', start: 17, end: 20, count: 0 },
-      { name: 'Night (9pm-5am)', start: 21, end: 4, count: 0 }
-    ];
-    
-    // Count entries in each time period
-    entries.forEach(entry => {
-      const hour = entry.createdAt.getHours();
-      
-      for (const period of timePeriods) {
-        // Handle night period that spans across midnight
-        if (period.start > period.end) {
-          if (hour >= period.start || hour <= period.end) {
-            period.count += 1;
-            break;
-          }
-        } else if (hour >= period.start && hour <= period.end) {
-          period.count += 1;
-          break;
-        }
-      }
-    });
-    
-    return timePeriods;
   }
 } 

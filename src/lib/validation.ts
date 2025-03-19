@@ -1,0 +1,148 @@
+import { z } from 'zod';
+import DOMPurify from 'dompurify';
+
+// Base schemas
+export const baseIdSchema = z.string().cuid();
+export const baseDateSchema = z.date();
+
+// User schemas
+export const userSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(50, 'Name must be less than 50 characters'),
+  email: z.string().email('Invalid email address'),
+  bio: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  theme: z.enum(['light', 'dark', 'system']).optional(),
+  emailNotifications: z.boolean().optional(),
+});
+
+export const registerSchema = userSchema.extend({
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+});
+
+// Journal Entry schemas
+export const journalEntrySchema = z.object({
+  title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
+  content: z.string().min(1, 'Content is required'),
+  categoryId: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  metadata: z.object({
+    wordCount: z.number().optional(),
+    readingTime: z.number().optional(),
+    mood: z.string().optional(),
+    weather: z.string().optional(),
+  }).optional(),
+});
+
+// Category schemas
+export const categorySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(50, 'Name must be less than 50 characters'),
+  description: z.string().optional().nullable(),
+  parentId: z.string().optional().nullable(),
+  color: z.string().optional(),
+});
+
+// Profile schemas
+export const profileSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(50, 'Name must be less than 50 characters'),
+  bio: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+});
+
+// Settings schemas
+export const settingsSchema = z.object({
+  theme: z.enum(['light', 'dark', 'system']),
+  emailNotifications: z.boolean(),
+});
+
+// Analytics query schema
+export const analyticsQuerySchema = z.object({
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+  categoryId: z.string().nullable().optional(),
+  timeRange: z.enum(['day', 'week', 'month', 'year']).default('week'),
+});
+
+// Input sanitization utilities
+export function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre'],
+    ALLOWED_ATTR: ['class'],
+  });
+}
+
+export function sanitizeText(text: string): string {
+  return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+}
+
+// Validation error handling
+export class ValidationError extends Error {
+  constructor(message: string, public field?: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+export function handleValidationError(error: unknown): Response {
+  if (error instanceof Error) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: error.message,
+      }),
+      {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: false,
+      message: 'An unexpected error occurred',
+    }),
+    {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+}
+
+// API validation middleware
+export async function validateRequest<T extends z.ZodType>(
+  schema: T,
+  data: unknown
+): Promise<z.infer<T>> {
+  try {
+    return await schema.parseAsync(data);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new ValidationError(error.errors.map(e => e.message).join(', '));
+    }
+    throw error;
+  }
+} 

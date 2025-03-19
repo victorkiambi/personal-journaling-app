@@ -286,18 +286,23 @@ export default function AnalyticsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <h3 className="font-medium">{data.summary.longestEntry.title}</h3>
-            <p className="text-sm text-muted-foreground">
-              {data.summary.longestEntry.wordCount} words • {format(new Date(data.summary.longestEntry.createdAt), 'MMMM d, yyyy')}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/journal/${data.summary.longestEntry.id}`)}
-            >
-              View Entry
-            </Button>
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Longest Entry</h3>
+            {data.summary.longestEntry ? (
+              <div>
+                <p className="text-2xl font-bold text-indigo-600">
+                  {data.summary.longestEntry.wordCount.toLocaleString()} words
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {data.summary.longestEntry.title}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {new Date(data.summary.longestEntry.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            ) : (
+              <p className="text-gray-500">No entries yet</p>
+            )}
           </div>
         </CardContent>
       </Card>

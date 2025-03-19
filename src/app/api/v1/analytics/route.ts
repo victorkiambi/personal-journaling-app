@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AnalyticsService } from '@/services/analytics.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { validateRequest, analyticsQuerySchema, handleValidationError } from '@/lib/validation';
 
 export const config = {
   api: {
@@ -18,94 +16,29 @@ export async function GET(request: NextRequest) {
   return withAuth(request, async (userId) => {
     try {
       const { searchParams } = new URL(request.url);
-      const months = parseInt(searchParams.get('months') || '6');
       
-      // Fetch all analytics data in parallel
-      const [summaryData, categoryDistribution, entryFrequency, writingTrends, timeOfDayPatterns] = await Promise.all([
-        AnalyticsService.getJournalSummary(userId),
-        AnalyticsService.getCategoryDistribution(userId),
-        AnalyticsService.getEntryFrequency(userId, months),
-        AnalyticsService.getWritingTrends(userId, months),
-        AnalyticsService.getTimeOfDayPatterns(userId)
-      ]);
-      
-      // Get the longest entry details if entries exist
-      let longestEntry = null;
-      if (summaryData.totalEntries > 0) {
-        // Find entry with the highest word count
-        const entry = await prisma.journalEntry.findFirst({
-          where: { 
-            userId,
-            metadata: {
-              wordCount: summaryData.longestEntry
-            }
-          },
-          select: {
-            id: true,
-            title: true,
-            createdAt: true,
-            metadata: {
-              select: {
-                wordCount: true
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'desc'
-          }
-        });
-        
-        if (entry) {
-          longestEntry = {
-            id: entry.id,
-            title: entry.title,
-            wordCount: entry.metadata?.wordCount || 0,
-            createdAt: entry.createdAt.toISOString()
-          };
-        }
-      }
-      
-      // Transform data to match frontend interface
-      const summary = {
-        totalEntries: summaryData.totalEntries,
-        totalWordCount: summaryData.totalWords,
-        averageWordsPerEntry: summaryData.avgWordsPerEntry,
-        longestEntry: longestEntry || {
-          id: '',
-          title: 'No entries yet',
-          wordCount: 0,
-          createdAt: new Date().toISOString()
-        }
-      };
-      
-      // Transform category distribution to match frontend format
-      const transformedCategoryDistribution = categoryDistribution.map(cat => ({
-        name: cat.name,
-        count: cat.value, // API returns 'value', frontend expects 'count'
-        color: cat.color
-      }));
-      
+      // Get query parameters with proper null handling
+      const startDate = searchParams.get('startDate') || null;
+      const endDate = searchParams.get('endDate') || null;
+      const categoryId = searchParams.get('categoryId') || null;
+      const timeRange = searchParams.get('timeRange') || 'week';
+
+      // Validate query parameters
+      const validatedData = await validateRequest(analyticsQuerySchema, {
+        startDate,
+        endDate,
+        categoryId,
+        timeRange,
+      });
+
+      const analytics = await AnalyticsService.getAnalytics(userId, validatedData);
+
       return NextResponse.json({
         success: true,
-        data: {
-          summary,
-          categoryDistribution: transformedCategoryDistribution,
-          entryFrequency,
-          writingTrends: writingTrends.map(trend => ({
-            month: trend.month,
-            entries: trend.entryCount, // API returns 'entryCount', frontend expects 'entries'
-            avgWords: trend.avgWordsPerEntry // API returns 'avgWordsPerEntry', frontend expects 'avgWords'
-          })),
-          timeOfDayPatterns: timeOfDayPatterns.map(period => ({
-            hour: period.start, // Use the start hour to represent the time period
-            count: period.count
-          })),
-          writingStreak: summaryData.currentStreak,
-          averageWordsPerDay: summaryData.avgWordsPerDay
-        }
+        data: analytics
       });
     } catch (error) {
-      console.error('Analytics API error:', error);
+      console.error('Analytics error:', error);
       return handleApiError(error);
     }
   });

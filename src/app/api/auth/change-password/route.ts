@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { UserService } from '@/services/user.service';
+import { AuthService } from '@/services/auth.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
 import { validateRequest, changePasswordSchema, handleValidationError } from '@/lib/validation';
 
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       // Validate request body
       const validatedData = await validateRequest(changePasswordSchema, body);
 
-      await UserService.changePassword(userId, validatedData);
+      await AuthService.changePassword(userId, validatedData);
 
       return NextResponse.json({
         success: true,
