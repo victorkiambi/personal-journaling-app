@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/auth.context';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 
 // Types for analytics data
@@ -31,33 +31,23 @@ interface JournalSummary {
 }
 
 interface CategoryDistribution {
-  name: string;
+  category: string;
   count: number;
   color: string;
 }
 
-interface EntryFrequency {
-  date: string;
-  count: number;
-}
-
-interface WritingTrend {
+interface MonthlyActivity {
   month: string;
   entries: number;
-  avgWords: number;
-}
-
-interface TimePattern {
-  hour: number;
-  count: number;
+  wordCount: number;
 }
 
 interface AnalyticsData {
   summary: JournalSummary;
   categoryDistribution: CategoryDistribution[];
-  entryFrequency: EntryFrequency[];
-  writingTrends: WritingTrend[];
-  timeOfDayPatterns: TimePattern[];
+  monthlyActivity: MonthlyActivity[];
+  writingStreak: number;
+  averageWordsPerDay: number;
 }
 
 export default function AnalyticsPage() {
@@ -65,7 +55,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { data: session, status } = useSession();
   const [isMounted, setIsMounted] = useState(false);
 
   // Handle client-side mounting
@@ -78,478 +68,239 @@ export default function AnalyticsPage() {
     if (!isMounted) return;
     
     // Wait for auth state to be determined
-    if (authLoading) return;
+    if (status === 'loading') return;
     
     // Redirect if not authenticated
-    if (!user) {
-      window.location.href = '/login';
+    if (status === 'unauthenticated') {
+      router.push('/login');
       return;
     }
     
     fetchAnalytics();
-  }, [user, authLoading, isMounted, router]);
+  }, [session, status, isMounted, router]);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Ensure we're in client environment
-      if (typeof window === 'undefined') return;
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        window.location.href = '/login';
-        return;
-      }
-      
-      const response = await fetch('/api/analytics', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        // Add cache control to prevent browser caching
-        cache: 'no-store'
-      });
+      const response = await fetch('/api/v1/analytics');
       
       if (!response.ok) {
-        if (response.status === 401) {
-          toast.error('Authentication error', {
-            description: 'Your session has expired. Please log in again.'
-          });
-          throw new Error('Your session has expired. Please log in again.');
-        }
-        
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to load analytics data');
+        throw new Error('Failed to fetch analytics data');
       }
-      
-      const analyticsData = await response.json();
-      console.log('Analytics data:', analyticsData); // Debug log
-      
-      // Ensure the data has the expected structure
-      if (!analyticsData || !analyticsData.summary) {
-        throw new Error('Invalid analytics data format');
-      }
-      
-      setData(analyticsData);
+
+      const result = await response.json();
+      setData(result.data);
     } catch (err) {
       console.error('Error fetching analytics:', err);
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setError('Failed to load analytics data');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRetry = () => {
-    fetchAnalytics();
-  };
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
-
-  // Don't render anything during SSR
   if (!isMounted) {
     return null;
   }
 
-  // Show loading until auth is determined
-  if (authLoading) {
-    return (
-      <div className="container mx-auto py-10">
-        <h1 className="text-3xl font-bold mb-6">Journal Analytics</h1>
-        <div className="flex justify-center">
-          <p>Loading authentication status...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
-      <div className="container mx-auto py-10">
-        <h1 className="text-3xl font-bold mb-6">Journal Analytics</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-4 w-1/2 mb-2" />
-                <Skeleton className="h-4 w-3/4" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-10 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="w-full h-80">
-              <CardHeader>
-                <Skeleton className="h-4 w-1/3 mb-2" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-60 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto py-10">
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={handleRetry}>Retry</Button>
-      </div>
-    );
-  }
-
-  if (!data || !data.summary) {
-    return (
-      <div className="container mx-auto py-10">
-        <Alert className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No Data Available</AlertTitle>
-          <AlertDescription>
-            There is no journal data to analyze. Start writing journal entries to see analytics.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  // Safely format numbers with fallbacks
-  const formatNumber = (num: number | undefined) => {
-    return num !== undefined ? num.toLocaleString() : '0';
-  };
-
-  return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">Journal Analytics</h1>
-      
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="space-y-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center text-lg">
-              <FileText className="mr-2 h-4 w-4" />
-              Total Entries
-            </CardTitle>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-72" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{data.summary.totalEntries || 0}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center text-lg">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Total Words
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatNumber(data.summary.totalWordCount)}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center text-lg">
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Avg. Words per Entry
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{Math.round(data.summary.averageWordsPerEntry || 0)}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center text-lg">
-              <CalendarDays className="mr-2 h-4 w-4" />
-              Longest Entry
-            </CardTitle>
-            <CardDescription className="truncate">
-              {data.summary.longestEntry?.title || 'No entries yet'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {data.summary.longestEntry ? `${data.summary.longestEntry.wordCount} words` : 'N/A'}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-32" />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
       </div>
-      
-      <Tabs defaultValue="charts" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="charts">Charts</TabsTrigger>
-          <TabsTrigger value="patterns">Writing Patterns</TabsTrigger>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          {error || 'Failed to load analytics data'}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-4"
+            onClick={fetchAnalytics}
+          >
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Entries</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.summary.totalEntries}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Words</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.summary.totalWordCount}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Writing Streak</CardTitle>
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.writingStreak} days</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {data.writingStreak > 0 ? 'Keep it up!' : 'Start writing to build your streak'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg. Words/Day</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.averageWordsPerDay}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {data.averageWordsPerDay > 0 ? 'Your daily writing average' : 'No entries yet'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
+      <Tabs defaultValue="category" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="category">Category Distribution</TabsTrigger>
+          <TabsTrigger value="monthly">Monthly Activity</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="charts" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Category Distribution */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>Category Distribution</CardTitle>
-                <CardDescription>
-                  Journal entries by category
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  {data.categoryDistribution && data.categoryDistribution.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={data.categoryDistribution}
-                          dataKey="count"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {data.categoryDistribution.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value, name) => [`${value} entries`, name]} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-muted-foreground">No category data available</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Entry Frequency */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>Entry Frequency</CardTitle>
-                <CardDescription>
-                  Journal entries over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  {data.entryFrequency && data.entryFrequency.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={data.entryFrequency}
-                        margin={{
-                          top: 10,
-                          right: 30,
-                          left: 0,
-                          bottom: 30,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
-                          tickFormatter={(date) => format(new Date(date), 'MMM d')}
-                          angle={-45}
-                          textAnchor="end"
-                        />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip
-                          labelFormatter={(date) => format(new Date(date), 'MMMM d, yyyy')}
-                          formatter={(value) => [`${value} entries`, 'Count']}
-                        />
-                        <Area type="monotone" dataKey="count" stroke="#8884d8" fill="#8884d8" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-muted-foreground">No frequency data available</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Writing Trends */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>Writing Trends</CardTitle>
-                <CardDescription>
-                  Entries and word counts by month
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  {data.writingTrends && data.writingTrends.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={data.writingTrends}
-                        margin={{
-                          top: 10,
-                          right: 30,
-                          left: 0,
-                          bottom: 30,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="month" 
-                          angle={-45}
-                          textAnchor="end"
-                        />
-                        <YAxis yAxisId="left" />
-                        <YAxis yAxisId="right" orientation="right" />
-                        <Tooltip />
-                        <Line
-                          yAxisId="left"
-                          type="monotone"
-                          dataKey="entries"
-                          stroke="#8884d8"
-                          activeDot={{ r: 8 }}
-                          name="Entries"
-                        />
-                        <Line
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="avgWords"
-                          stroke="#82ca9d"
-                          name="Avg Words"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-muted-foreground">No trend data available</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Time of Day Patterns */}
-            <Card className="w-full">
-              <CardHeader>
-                <CardTitle>Time of Day Patterns</CardTitle>
-                <CardDescription>
-                  When you write most frequently
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  {data.timeOfDayPatterns && data.timeOfDayPatterns.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={data.timeOfDayPatterns}
-                        margin={{
-                          top: 10,
-                          right: 30,
-                          left: 0,
-                          bottom: 30,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="hour" 
-                          tickFormatter={(hour) => `${hour}:00`}
-                          angle={-45}
-                          textAnchor="end"
-                        />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip 
-                          labelFormatter={(hour) => `Time: ${hour}:00 - ${hour+1}:00`}
-                          formatter={(value) => [`${value} entries`, 'Count']}
-                        />
-                        <Bar dataKey="count" fill="#82ca9d" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-muted-foreground">No time pattern data available</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="patterns" className="space-y-6">
+
+        <TabsContent value="category" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Writing Habits</CardTitle>
+              <CardTitle>Category Distribution</CardTitle>
               <CardDescription>
-                Insights about your journaling habits
+                How your entries are distributed across categories
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-4">
-                  <Clock className="h-5 w-5 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <h3 className="font-medium">Preferred Writing Time</h3>
-                    <p className="text-muted-foreground">
-                      {data.timeOfDayPatterns && data.timeOfDayPatterns.length > 0 
-                        ? `You most frequently write at ${data.timeOfDayPatterns.sort((a, b) => b.count - a.count)[0].hour}:00.`
-                        : 'Not enough data to determine your preferred writing time.'}
-                    </p>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-start space-x-4">
-                  <CalendarDays className="h-5 w-5 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <h3 className="font-medium">Writing Consistency</h3>
-                    <p className="text-muted-foreground">
-                      {data.writingTrends && data.writingTrends.length > 0
-                        ? `On average, you write ${(data.writingTrends.reduce((sum, trend) => sum + trend.entries, 0) / data.writingTrends.length).toFixed(1)} entries per month.`
-                        : 'Not enough data to analyze your writing consistency.'}
-                    </p>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-start space-x-4">
-                  <FileText className="h-5 w-5 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <h3 className="font-medium">Content Length</h3>
-                    <p className="text-muted-foreground">
-                      {data.summary && data.summary.totalEntries > 0
-                        ? `Your journal entries average ${Math.round(data.summary.averageWordsPerEntry || 0)} words, with your longest being ${data.summary.longestEntry?.wordCount || 0} words.`
-                        : 'Not enough entries to analyze content length patterns.'}
-                    </p>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-start space-x-4">
-                  <BarChart3 className="h-5 w-5 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <h3 className="font-medium">Category Preference</h3>
-                    <p className="text-muted-foreground">
-                      {data.categoryDistribution && data.categoryDistribution.length > 0
-                        ? `Your most used category is "${data.categoryDistribution.sort((a, b) => b.count - a.count)[0].name}" with ${data.categoryDistribution.sort((a, b) => b.count - a.count)[0].count} entries.`
-                        : 'No category data available to determine your preferences.'}
-                    </p>
-                  </div>
-                </div>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={data.categoryDistribution}
+                      dataKey="count"
+                      nameKey="category"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label
+                    >
+                      {data.categoryDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="monthly" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Monthly Activity</CardTitle>
+              <CardDescription>
+                Your writing activity over time
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.monthlyActivity}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Area
+                      type="monotone"
+                      dataKey="entries"
+                      stroke="#8884d8"
+                      fill="#8884d8"
+                      fillOpacity={0.3}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="wordCount"
+                      stroke="#82ca9d"
+                      fill="#82ca9d"
+                      fillOpacity={0.3}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Longest Entry */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Longest Entry</CardTitle>
+          <CardDescription>
+            Your most detailed journal entry
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <h3 className="font-medium">{data.summary.longestEntry.title}</h3>
+            <p className="text-sm text-muted-foreground">
+              {data.summary.longestEntry.wordCount} words • {format(new Date(data.summary.longestEntry.createdAt), 'MMMM d, yyyy')}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/journal/${data.summary.longestEntry.id}`)}
+            >
+              View Entry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

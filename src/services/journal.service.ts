@@ -19,7 +19,6 @@ export class JournalService {
           userId,
           title: data.title,
           content: data.content,
-          isPublic: data.isPublic ?? false,
           categories: data.categoryIds ? {
             connect: data.categoryIds.map(id => ({ id }))
           } : undefined,
@@ -73,7 +72,6 @@ export class JournalService {
           data: {
             ...(data.title !== undefined && { title: data.title }),
             ...(data.content !== undefined && { content: data.content }),
-            ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
             ...(data.categoryIds && {
               categories: {
                 set: data.categoryIds.map(id => ({ id }))

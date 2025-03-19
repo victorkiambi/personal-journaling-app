@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/contexts/auth.context';
+import { signIn } from 'next-auth/react';
 
 const formSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -30,7 +30,6 @@ type FormData = z.infer<typeof formSchema>;
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { login } = useAuth();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -44,13 +43,21 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      await login(data.email, data.password);
+      const result = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
       
       toast.success('Login successful', {
         description: 'You have been logged in successfully'
       });
       
-      router.push('/');
+      router.push('/journal');
     } catch (error) {
       toast.error('Login failed', {
         description: error instanceof Error ? error.message : 'Failed to login'

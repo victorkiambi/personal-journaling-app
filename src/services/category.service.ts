@@ -22,7 +22,7 @@ export class CategoryService {
         color: data.color
       },
       include: {
-        entries: true
+        journalEntries: true
       }
     });
 
@@ -62,7 +62,7 @@ export class CategoryService {
         color: data.color
       },
       include: {
-        entries: true
+        journalEntries: true
       }
     });
 
@@ -93,7 +93,7 @@ export class CategoryService {
         userId
       },
       include: {
-        entries: {
+        journalEntries: {
           include: {
             metadata: true
           }
@@ -112,9 +112,13 @@ export class CategoryService {
     const categories = await prisma.category.findMany({
       where: { userId },
       include: {
-        entries: true,
+        journalEntries: {
+          include: {
+            metadata: true
+          }
+        },
         _count: {
-          select: { entries: true }
+          select: { journalEntries: true }
         }
       },
       orderBy: { name: 'asc' }

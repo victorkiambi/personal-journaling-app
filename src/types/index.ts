@@ -34,7 +34,6 @@ export type RegisterData = {
 export type JournalEntryData = {
   title: string;
   content: string;
-  isPublic?: boolean;
   categoryIds?: string[];
 };
 

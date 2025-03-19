@@ -1,7 +1,7 @@
 'use client';
 
-import { Navbar } from './Navbar';
-import { useAuth } from '@/contexts/auth.context';
+import Navigation from './Navigation';
+import { useSession } from 'next-auth/react';
 import { Loader2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
@@ -10,12 +10,12 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { user, loading } = useAuth();
+  const { data: session, status } = useSession();
   const pathname = usePathname();
 
   const isPublicRoute = ['/', '/login', '/register'].includes(pathname);
 
-  if (loading) {
+  if (status === 'loading') {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -24,11 +24,11 @@ export function Layout({ children }: LayoutProps) {
   }
 
   // For public routes or authenticated users, show content
-  if (isPublicRoute || user) {
+  if (isPublicRoute || session) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {user && <Navbar />}
-        <main className={user ? "py-6" : ""}>
+        {session && <Navigation />}
+        <main className={session ? "py-6" : ""}>
           {children}
         </main>
       </div>

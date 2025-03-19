@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { formatDate } from '@/lib/utils';
 import { Category } from '@/types/category';
+import { useSession } from 'next-auth/react';
 
 interface JournalEntry {
   id: string;
@@ -19,16 +20,19 @@ interface JournalEntry {
   categoryIds: string[];
   createdAt: string;
   updatedAt: string;
+  categories: {
+    id: string;
+    name: string;
+    color: string;
+  }[];
 }
 
 interface PaginatedResponse {
-  entries: JournalEntry[];
-  pagination: {
-    total: number;
-    pages: number;
-    page: number;
-    limit: number;
-  };
+  items: JournalEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 interface ApiResponse<T> {
@@ -39,6 +43,7 @@ interface ApiResponse<T> {
 
 export default function JournalEntryList() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -46,24 +51,22 @@ export default function JournalEntryList() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCategories();
-    fetchEntries();
-  }, []);
+    if (session) {
+      fetchCategories();
+      fetchEntries();
+    }
+  }, [session]);
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      const response = await fetch('/api/v1/categories');
 
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
       }
 
       const data = await response.json();
-      setCategories(data.categories || []);
+      setCategories(data.data || []);
     } catch (err) {
       console.error('Error fetching categories:', err);
       toast.error('Failed to load categories');
@@ -75,18 +78,14 @@ export default function JournalEntryList() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/journal', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      const response = await fetch('/api/v1/entries');
 
       if (!response.ok) {
         throw new Error('Failed to fetch entries');
       }
 
       const data = await response.json();
-      setEntries(data.data.entries || []);
+      setEntries(data.data.items || []);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching entries:', err);
@@ -97,11 +96,8 @@ export default function JournalEntryList() {
 
   const handleDelete = async (entryId: string) => {
     try {
-      const response = await fetch(`/api/journal/${entryId}`, {
+      const response = await fetch(`/api/v1/entries/${entryId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
       });
 
       if (!response.ok) {
@@ -124,7 +120,7 @@ export default function JournalEntryList() {
 
   const filteredEntries = entries.filter(entry => {
     if (!selectedCategory) return true;
-    return entry.categoryIds.includes(selectedCategory);
+    return entry.categories.some(cat => cat.id === selectedCategory);
   });
 
   if (loading) {
@@ -181,52 +177,49 @@ export default function JournalEntryList() {
       <hr className="shrink-0 bg-border h-[1px] w-full" role="none" />
 
       <div className="grid grid-cols-1 gap-6">
-        {filteredEntries.map(entry => {
-          const entryCategories = categories.filter(cat => entry.categoryIds.includes(cat.id));
-          return (
-            <div
-              key={entry.id}
-              className="p-6 bg-card text-card-foreground rounded-lg shadow-sm"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">{entry.title}</h3>
-                  <div className="flex gap-2 mb-2">
-                    {entryCategories.map(category => (
-                      <span
-                        key={category.id}
-                        className="px-2 py-1 rounded text-xs"
-                        style={{ backgroundColor: category.color }}
-                      >
-                        {category.name}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDate(entry.createdAt)}
-                  </p>
+        {filteredEntries.map(entry => (
+          <div
+            key={entry.id}
+            className="p-6 bg-card text-card-foreground rounded-lg shadow-sm"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">{entry.title}</h3>
+                <div className="flex gap-2 mb-2">
+                  {entry.categories.map(category => (
+                    <span
+                      key={category.id}
+                      className="px-2 py-1 rounded text-xs"
+                      style={{ backgroundColor: category.color }}
+                    >
+                      {category.name}
+                    </span>
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/journal/${entry.id}`)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(entry.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  {formatDate(entry.createdAt)}
+                </p>
               </div>
-              <p className="text-sm line-clamp-3">{entry.content}</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/journal/${entry.id}/edit`)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(entry.id)}
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
-          );
-        })}
+            <p className="text-sm line-clamp-3">{entry.content}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

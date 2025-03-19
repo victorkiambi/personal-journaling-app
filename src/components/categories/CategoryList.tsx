@@ -19,7 +19,7 @@ export function CategoryList() {
   const fetchCategories = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/categories', {
+      const response = await fetch('/api/v1/categories', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -50,7 +50,7 @@ export function CategoryList() {
     setIsDeleting(categoryId);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/categories/${categoryId}`, {
+      const response = await fetch(`/api/v1/categories/${categoryId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -72,7 +72,7 @@ export function CategoryList() {
   const handleSave = async (category: Omit<Category, 'id'>) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/categories', {
+      const response = await fetch('/api/v1/categories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ export function CategoryList() {
   const handleUpdate = async (categoryId: string, updates: Partial<Category>) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/categories/${categoryId}`, {
+      const response = await fetch(`/api/v1/categories/${categoryId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

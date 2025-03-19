@@ -15,14 +15,14 @@ import {
   Tag, 
   BarChart 
 } from 'lucide-react';
-import { useAuth } from '@/contexts/auth.context';
+import { useSession, signOut } from 'next-auth/react';
 import { Loader2 } from 'lucide-react';
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, logout } = useAuth();
+  const { data: session, status } = useSession();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -33,7 +33,7 @@ export default function Navigation() {
   };
 
   const handleLogout = () => {
-    logout();
+    signOut();
   };
 
   const isActive = (path: string) => {
@@ -46,7 +46,7 @@ export default function Navigation() {
   }, [pathname]);
 
   // Don't render navigation while loading
-  if (loading) {
+  if (status === 'loading') {
     return (
       <nav className="bg-background border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -61,7 +61,7 @@ export default function Navigation() {
   }
 
   // Don't render navigation for public routes
-  if (!user && ['/login', '/register'].includes(pathname)) {
+  if (!session && ['/login', '/register'].includes(pathname)) {
     return null;
   }
 
@@ -77,7 +77,7 @@ export default function Navigation() {
             </div>
           </div>
           <div className="hidden md:ml-6 md:flex md:items-center md:space-x-4">
-            {user ? (
+            {session ? (
               <>
                 <Link href="/" passHref>
                   <Button
@@ -173,7 +173,7 @@ export default function Navigation() {
       {isMenuOpen && (
         <div className="md:hidden">
           <div className="pt-2 pb-3 space-y-1">
-            {user ? (
+            {session ? (
               <>
                 <Link href="/" passHref>
                   <Button

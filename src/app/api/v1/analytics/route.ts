@@ -99,7 +99,9 @@ export async function GET(request: NextRequest) {
           timeOfDayPatterns: timeOfDayPatterns.map(period => ({
             hour: period.start, // Use the start hour to represent the time period
             count: period.count
-          }))
+          })),
+          writingStreak: summaryData.currentStreak,
+          averageWordsPerDay: summaryData.avgWordsPerDay
         }
       });
     } catch (error) {

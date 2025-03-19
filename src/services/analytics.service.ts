@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { startOfMonth, endOfMonth, format, eachDayOfInterval, subMonths, startOfDay, endOfDay, parseISO, isWithinInterval } from 'date-fns';
+import { startOfMonth, endOfMonth, format, eachDayOfInterval, subMonths, startOfDay, endOfDay, parseISO, isWithinInterval, differenceInDays } from 'date-fns';
 
 const prisma = new PrismaClient();
 
@@ -25,24 +25,65 @@ export class AnalyticsService {
             readingTime: true
           }
         }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     });
 
     let totalWords = 0;
     let avgWordsPerEntry = 0;
     let longestEntry = 0;
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let avgWordsPerDay = 0;
 
     if (entriesWithMetadata.length > 0) {
+      // Calculate word count metrics
       totalWords = entriesWithMetadata.reduce((sum, entry) => sum + (entry.metadata?.wordCount || 0), 0);
       avgWordsPerEntry = Math.round(totalWords / entriesWithMetadata.length);
       longestEntry = Math.max(...entriesWithMetadata.map(entry => entry.metadata?.wordCount || 0));
+
+      // Calculate writing streak
+      const today = startOfDay(new Date());
+      let previousDate = startOfDay(entriesWithMetadata[0].createdAt);
+      let streak = 1;
+      let maxStreak = 1;
+
+      for (let i = 1; i < entriesWithMetadata.length; i++) {
+        const currentDate = startOfDay(entriesWithMetadata[i].createdAt);
+        const daysDiff = differenceInDays(previousDate, currentDate);
+
+        if (daysDiff === 1) {
+          streak++;
+          maxStreak = Math.max(maxStreak, streak);
+        } else {
+          streak = 1;
+        }
+
+        previousDate = currentDate;
+      }
+
+      // Check if current streak is still active
+      const lastEntryDate = startOfDay(entriesWithMetadata[0].createdAt);
+      const daysSinceLastEntry = differenceInDays(today, lastEntryDate);
+      currentStreak = daysSinceLastEntry === 0 ? streak : 0;
+      longestStreak = maxStreak;
+
+      // Calculate average words per day
+      const firstEntryDate = startOfDay(entriesWithMetadata[entriesWithMetadata.length - 1].createdAt);
+      const totalDays = Math.max(1, differenceInDays(today, firstEntryDate) + 1);
+      avgWordsPerDay = Math.round(totalWords / totalDays);
     }
 
     return {
       totalEntries,
       totalWords,
       avgWordsPerEntry,
-      longestEntry
+      longestEntry,
+      currentStreak,
+      longestStreak,
+      avgWordsPerDay
     };
   }
 
@@ -58,7 +99,7 @@ export class AnalyticsService {
         color: true,
         _count: {
           select: {
-            entries: true
+            journalEntries: true
           }
         }
       }
@@ -67,7 +108,7 @@ export class AnalyticsService {
     // Transform the data for the chart
     return categories.map(category => ({
       name: category.name,
-      value: category._count.entries,
+      value: category._count.journalEntries,
       color: category.color
     }));
   }

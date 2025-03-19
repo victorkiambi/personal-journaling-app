@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/contexts/auth.context';
+import { signIn } from 'next-auth/react';
 
 const formSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -35,7 +35,6 @@ type FormData = z.infer<typeof formSchema>;
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { register } = useAuth();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -51,13 +50,40 @@ export default function RegisterPage() {
     setIsLoading(true);
     
     try {
-      await register(data.name, data.email, data.password);
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          password: data.password,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Registration failed');
+      }
+
+      // Sign in after successful registration
+      const signInResult = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        throw new Error(signInResult.error);
+      }
       
       toast.success('Registration successful', {
         description: 'Your account has been created successfully'
       });
       
-      router.push('/');
+      router.push('/journal');
     } catch (error) {
       toast.error('Registration failed', {
         description: error instanceof Error ? error.message : 'Failed to register'
@@ -71,9 +97,9 @@ export default function RegisterPage() {
     <div className="container mx-auto py-10 flex justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Create an account</CardTitle>
+          <CardTitle className="text-2xl">Register</CardTitle>
           <CardDescription>
-            Enter your information to create your journal account
+            Create your account to start journaling
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -84,11 +110,10 @@ export default function RegisterPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full name</FormLabel>
+                    <FormLabel>Name</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="John Doe" 
-                        autoComplete="name"
+                        placeholder="Your name" 
                         disabled={isLoading} 
                         {...field} 
                       />
@@ -140,7 +165,7 @@ export default function RegisterPage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm password</FormLabel>
+                    <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="********" 
@@ -164,7 +189,7 @@ export default function RegisterPage() {
           <div className="text-sm text-center">
             Already have an account?{' '}
             <Link href="/login" className="text-primary hover:underline">
-              Sign in
+              Login
             </Link>
           </div>
         </CardFooter>

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Category } from '@/types/category';
 import { formatDate } from '@/lib/utils';
+import { useSession } from 'next-auth/react';
 
 interface JournalEntry {
   id: string;
@@ -52,6 +53,7 @@ function calculateReadingTime(wordCount: number): number {
 
 export default function JournalEntryForm({ entryId, isEditing = false }: JournalEntryFormProps) {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [formData, setFormData] = useState<{
     title: string;
     content: string;
@@ -70,26 +72,25 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    // Wait for auth state to be determined
+    if (status === 'loading') return;
+    
+    // Redirect if not authenticated
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
 
     const fetchCategories = async () => {
       try {
-        const response = await fetch('/api/categories', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
+        const response = await fetch('/api/v1/categories');
+        
         if (!response.ok) {
           throw new Error('Failed to fetch categories');
         }
 
         const data = await response.json();
-        setCategories(data || []);
+        setCategories(data.data || []);
         setCategoriesLoading(false);
       } catch (err) {
         console.error('Error fetching categories:', err);
@@ -103,12 +104,8 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
 
       try {
         setLoading(true);
-        const response = await fetch(`/api/journal/${entryId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
+        const response = await fetch(`/api/v1/entries/${entryId}`);
+        
         if (!response.ok) {
           throw new Error('Failed to fetch entry');
         }
@@ -117,7 +114,7 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
         setFormData({
           title: entry.title,
           content: entry.content,
-          categoryIds: entry.categoryIds || [],
+          categoryIds: entry.categories?.map((cat: any) => cat.id) || [],
         });
         setWordCount(entry.metadata?.wordCount || 0);
         setReadingTime(entry.metadata?.readingTime || 0);
@@ -133,7 +130,7 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
     if (isEditing) {
       fetchEntry();
     }
-  }, [entryId, isEditing, router]);
+  }, [entryId, isEditing, router, status]);
 
   const selectedCategories = Array.isArray(categories) ? categories.filter(cat => formData.categoryIds.includes(cat.id)) : [];
 
@@ -150,22 +147,21 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
-    if (!token) {
+    
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
 
     try {
       setLoading(true);
-      const url = isEditing ? `/api/journal/${entryId}` : '/api/journal';
+      const url = isEditing ? `/api/v1/entries/${entryId}` : '/api/v1/entries';
       const method = isEditing ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...formData,
