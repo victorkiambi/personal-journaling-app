@@ -1,10 +1,13 @@
+# Database Schema Diagram
+
+```mermaid
 erDiagram
-User ||--o{ Account : has
-User ||--o{ Session : has
-User ||--|| Profile : has
-User ||--|| Settings : has
-User ||--o{ Category : has
-User ||--o{ JournalEntry : has
+    User ||--o{ Account : has
+    User ||--o{ Session : has
+    User ||--|| Profile : has
+    User ||--|| Settings : has
+    User ||--o{ Category : has
+    User ||--o{ JournalEntry : has
 
     User {
         string id PK
@@ -41,7 +44,7 @@ User ||--o{ JournalEntry : has
 
     Profile {
         string id PK
-        string userId FK UK
+        string userId FK
         string bio
         string location
         string website
@@ -51,7 +54,7 @@ User ||--o{ JournalEntry : has
 
     Settings {
         string id PK
-        string userId FK UK
+        string userId FK 
         string theme
         boolean emailNotifications
         datetime createdAt
@@ -78,12 +81,14 @@ User ||--o{ JournalEntry : has
 
     EntryMetadata {
         string id PK
-        string entryId FK UK
+        string entryId FK 
         int wordCount
         int readingTime
+        json sentiment
         datetime createdAt
         datetime updatedAt
     }
 
-    JournalEntry }o--|| EntryMetadata : has
-    JournalEntry }o--o{ Category : has
+    JournalEntry ||--|| EntryMetadata : has
+    JournalEntry }o--o{ Category : belongs_to
+``` 

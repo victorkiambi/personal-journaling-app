@@ -1,72 +1,78 @@
-erDiagram
-    User ||--o{ Account : has
-    User ||--o{ Session : has
-    User ||--|| Profile : has
-    User ||--|| Settings : has
-    User ||--o{ Category : has
-    User ||--o{ JournalEntry : has
+# Shamiri Journal - System Design Document
 
+## Table of Contents
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+3. [Data Model](#data-model)
+4. [Security](#security)
+5. [Scaling](#scaling)
+6. [Setup Guide](#setup-guide)
+7. [Documentation References](#documentation-references)
+
+## Overview
+
+Shamiri Journal is a modern web application for personal journaling with sentiment analysis and analytics features. The application is built using Next.js 14, TypeScript, and shadcn/ui components.
+
+## Architecture
+
+### Technology Stack
+
+- **Frontend**: Next.js 14, React, TypeScript, shadcn/ui, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: NextAuth.js with JWT
+- **Analytics**: Custom sentiment analysis
+- **Testing**: Jest, React Testing Library
+- **Deployment**: Vercel
+
+### System Architecture Diagram
+
+```mermaid
+graph TD
+    A[Client Browser] --> B[Next.js App]
+    B --> C[Authentication]
+    B --> D[API Routes]
+    B --> E[Static Assets]
+    C --> F[NextAuth.js]
+    D --> G[Database]
+    D --> H[External Services]
+    G --> I[PostgreSQL]
+    H --> J[Sentiment Analysis]
+    H --> K[Analytics]
+```
+
+### Component Architecture
+
+```mermaid
+graph TD
+    A[Pages] --> B[Layout Components]
+    A --> C[Feature Components]
+    A --> D[UI Components]
+    B --> E[Navigation]
+    B --> F[Header]
+    B --> G[Footer]
+    C --> H[Journal]
+    C --> I[Analytics]
+    C --> J[Settings]
+    D --> K[Form Elements]
+    D --> L[Data Display]
+    D --> M[Feedback]
+```
+
+## Data Model
+
+### Entity Relationship Diagram
+
+```mermaid
+erDiagram
     User {
         string id PK
+        string email
         string name
-        string email UK
-        datetime emailVerified
-        string image
         string password
         datetime createdAt
         datetime updatedAt
     }
-
-    Account {
-        string id PK
-        string userId FK
-        string type
-        string provider
-        string providerAccountId
-        string refresh_token
-        string access_token
-        int expires_at
-        string token_type
-        string scope
-        string id_token
-        string session_state
-    }
-
-    Session {
-        string id PK
-        string sessionToken UK
-        string userId FK
-        datetime expires
-    }
-
-    Profile {
-        string id PK
-        string userId FK UK
-        string bio
-        string location
-        string website
-        datetime createdAt
-        datetime updatedAt
-    }
-
-    Settings {
-        string id PK
-        string userId FK UK
-        string theme
-        boolean emailNotifications
-        datetime createdAt
-        datetime updatedAt
-    }
-
-    Category {
-        string id PK
-        string name
-        string color
-        string userId FK
-        datetime createdAt
-        datetime updatedAt
-    }
-
     JournalEntry {
         string id PK
         string title
@@ -75,15 +81,288 @@ erDiagram
         datetime createdAt
         datetime updatedAt
     }
-
-    EntryMetadata {
+    Category {
         string id PK
-        string entryId FK UK
-        int wordCount
-        int readingTime
+        string name
+        string color
+        string userId FK
         datetime createdAt
         datetime updatedAt
     }
+    Profile {
+        string id PK
+        string userId FK
+        string bio
+        string location
+        string website
+        datetime createdAt
+        datetime updatedAt
+    }
+    Settings {
+        string id PK
+        string userId FK
+        string theme
+        boolean emailNotifications
+        datetime createdAt
+        datetime updatedAt
+    }
+    EntryMetadata {
+        string id PK
+        string entryId FK
+        int wordCount
+        int readingTime
+        json sentiment
+        datetime createdAt
+        datetime updatedAt
+    }
+    User ||--o{ JournalEntry : creates
+    User ||--o{ Category : creates
+    User ||--|| Profile : has
+    User ||--|| Settings : has
+    JournalEntry ||--|| EntryMetadata : has
+    JournalEntry }o--o{ Category : belongs_to
+```
 
-    JournalEntry }o--|| EntryMetadata : has
-    JournalEntry }o--o{ Category : has
+### Core Entities
+
+1. **User**
+   - Primary key: id (UUID)
+   - Attributes: email, name, password, createdAt, updatedAt
+   - Relationships: one-to-many with JournalEntry, one-to-one with Profile and Settings
+
+2. **JournalEntry**
+   - Primary key: id (UUID)
+   - Attributes: title, content, userId, createdAt, updatedAt
+   - Relationships: many-to-many with Category, one-to-one with EntryMetadata
+
+3. **Category**
+   - Primary key: id (UUID)
+   - Attributes: name, color, userId, createdAt, updatedAt
+   - Relationships: many-to-many with JournalEntry
+
+4. **EntryMetadata**
+   - Primary key: id (UUID)
+   - Attributes: entryId, wordCount, readingTime, sentiment, createdAt, updatedAt
+   - Relationships: one-to-one with JournalEntry
+
+## Security
+
+### Authentication Strategy
+
+1. **JWT-based Authentication**
+   - Secure token generation
+   - Token refresh mechanism
+   - Session management
+   - Protected routes
+
+2. **Password Security**
+   - Bcrypt hashing
+   - Password complexity requirements
+   - Rate limiting on login attempts
+   - Secure password reset flow
+
+3. **API Security**
+   - CSRF protection
+   - Rate limiting
+   - Input validation
+   - Error handling
+
+## Scaling
+
+### Current Architecture
+
+1. **Database Scaling**
+   - Indexed queries
+   - Connection pooling
+   - Query optimization
+   - Caching strategy
+
+2. **Application Scaling**
+   - Serverless functions
+   - Edge caching
+   - Static asset optimization
+   - Load balancing
+
+### Scaling to 1M+ Users
+
+1. **Infrastructure**
+   - Distributed PostgreSQL cluster
+   - Kubernetes deployment
+   - CDN integration
+   - Monitoring and logging
+
+2. **Performance Optimization**
+   - Database sharding
+   - Caching layers
+   - Query optimization
+   - Asset optimization
+
+## Monitoring and Logging
+
+1. **Application Monitoring**
+   - Error tracking
+   - Performance metrics
+   - User analytics
+   - System health
+
+2. **Logging Strategy**
+   - Structured logging
+   - Log aggregation
+   - Log retention
+   - Log analysis
+
+## Future Considerations
+
+### Technical Debt
+
+1. **Code Organization**
+   - Component reusability
+   - Type definitions
+   - Test coverage
+   - Documentation
+
+2. **Performance**
+   - Bundle optimization
+   - Image optimization
+   - API response time
+   - Database queries
+
+### Feature Roadmap
+
+1. **Core Features**
+   - Rich text editor
+   - Image upload
+   - Export functionality
+   - Search improvements
+
+2. **Advanced Features**
+   - Real-time collaboration
+   - Mobile application
+   - Offline support
+   - Advanced analytics
+
+3. **AI/ML Features**
+   - Smart categorization
+   - Content suggestions
+   - Writing prompts
+   - Pattern recognition
+
+## Resources
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs)
+- [NextAuth.js Documentation](https://next-auth.js.org)
+- [shadcn/ui Documentation](https://ui.shadcn.com)
+
+## Setup Guide
+
+### Prerequisites
+- Node.js 18.x or later
+- PostgreSQL 14.x or later
+- npm or yarn
+- Git
+
+### Environment Variables
+Create a `.env` file in the root directory with the following variables:
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/shamiri"
+
+# NextAuth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"
+
+# Google Cloud (for sentiment analysis)
+GOOGLE_CLOUD_PROJECT="your-project-id"
+GOOGLE_APPLICATION_CREDENTIALS="path/to/credentials.json"
+```
+
+### Installation Steps
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/shamiri.git
+cd shamiri
+```
+
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Set up the database:
+```bash
+# Generate Prisma client
+npm run postinstall
+
+# Run migrations
+npx prisma migrate dev
+
+# Seed the database (optional)
+npx prisma db seed
+```
+
+4. Start the development server:
+```bash
+npm run dev
+# or
+yarn dev
+```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Testing
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate test coverage report
+npm run test:coverage
+```
+
+### Production Deployment
+1. Build the application:
+```bash
+npm run build
+```
+
+2. Start the production server:
+```bash
+npm start
+```
+
+## Documentation References
+
+### API Documentation
+- [API Routes](./src/app/api/README.md)
+- [Swagger Documentation](./src/app/api/swagger.json)
+
+### Database Documentation
+- [Database Schema](./DATABASE.md)
+- [Database Diagram](./DATABASE_DIAGRAM.md)
+
+### Authentication Documentation
+- [Auth Implementation](./AUTH.md)
+- [NextAuth Configuration](./src/lib/auth.ts)
+
+### Component Documentation
+- [UI Components](./src/components/README.md)
+- [Layout Components](./src/components/layout/README.md)
+
+### Testing Documentation
+- [Test Setup](./jest.setup.js)
+- [Test Utilities](./src/test/README.md)
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
