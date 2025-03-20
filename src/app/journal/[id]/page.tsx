@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-
+import { AIInsights } from '@/components/journal/AIInsights';
 
 interface JournalEntry {
   id: string;
@@ -30,6 +30,21 @@ interface JournalEntry {
     id: string;
     name: string;
     color: string;
+  };
+  insights?: {
+    categories: string[];
+    writingStyle: {
+      complexity: number;
+      readability: number;
+      suggestions: string[];
+    };
+    themes: string[];
+    summary: string;
+    patterns: {
+      topics: string[];
+      emotions: string[];
+      timeOfDay: string;
+    };
   };
 }
 
@@ -73,7 +88,8 @@ export default function JournalEntryPage() {
             id: 'default',
             name: 'Uncategorized',
             color: '#808080'
-          }
+          },
+          insights: data.insights
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
@@ -231,6 +247,15 @@ export default function JournalEntryPage() {
             ))}
           </div>
         </CardContent>
+
+        {entry.insights && (
+          <>
+            <Separator />
+            <CardContent className="py-6">
+              <AIInsights insights={entry.insights} />
+            </CardContent>
+          </>
+        )}
       </Card>
     </div>
   );

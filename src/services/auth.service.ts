@@ -1,57 +1,89 @@
-import { prisma } from '@/lib/prisma';
+import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
 import { hash, compare } from 'bcrypt';
 import { z } from 'zod';
+import { ValidationError, registerSchema, loginSchema } from '@/lib/validation';
+import { DuplicateError, NotFoundError, UnauthorizedError } from '@/lib/errors';
 
 export class AuthService {
-  static async register(data: z.infer<typeof import('@/lib/validation').registerSchema>) {
-    const { email, password, name } = data;
+  private static prisma = getPrismaClient();
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+  static async register(data: z.infer<typeof registerSchema>) {
+    return withTransaction(async (tx) => {
+      const { email, password, name } = data;
+
+      // Check if user already exists
+      const existingUser = await withDbError(
+        tx.user.findUnique({
+          where: { email },
+          select: { id: true }
+        }),
+        'Failed to check for existing user'
+      );
+
+      if (existingUser) {
+        throw new DuplicateError('User with this email already exists');
+      }
+
+      // Hash password
+      const hashedPassword = await hash(password, 10);
+
+      // Create user with profile and settings
+      const user = await withDbError(
+        tx.user.create({
+          data: {
+            email,
+            name,
+            password: hashedPassword,
+            profile: {
+              create: {
+                name,
+              }
+            },
+            settings: {
+              create: {
+                theme: 'system',
+                emailNotifications: true
+              }
+            }
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        }),
+        'Failed to create user'
+      );
+
+      return user;
     });
-
-    if (existingUser) {
-      throw new Error('User with this email already exists');
-    }
-
-    // Hash password
-    const hashedPassword = await hash(password, 10);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        password: hashedPassword,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-      },
-    });
-
-    return user;
   }
 
-  static async login(data: z.infer<typeof import('@/lib/validation').loginSchema>) {
+  static async login(data: z.infer<typeof loginSchema>) {
     const { email, password } = data;
 
     // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await withDbError(
+      this.prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          password: true,
+        },
+      }),
+      'Failed to find user'
+    );
 
-    if (!user) {
-      throw new Error('Invalid credentials');
+    if (!user || !user.password) {
+      throw new NotFoundError('User not found');
     }
 
     // Verify password
-    const isPasswordValid = await compare(password, user.password || '');
-
-    if (!isPasswordValid) {
-      throw new Error('Invalid credentials');
+    const isValid = await compare(password, user.password);
+    if (!isValid) {
+      throw new UnauthorizedError('Invalid credentials');
     }
 
     return {
@@ -61,36 +93,41 @@ export class AuthService {
     };
   }
 
-  static async changePassword(userId: string, data: z.infer<typeof import('@/lib/validation').changePasswordSchema>) {
-    const { currentPassword, newPassword } = data;
+  static async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    return withTransaction(async (tx) => {
+      // Find user
+      const user = await withDbError(
+        tx.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            password: true,
+          },
+        }),
+        'Failed to find user'
+      );
 
-    // Get user with password
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        password: true,
-      },
-    });
+      if (!user || !user.password) {
+        throw new NotFoundError('User not found');
+      }
 
-    if (!user) {
-      throw new Error('User not found');
-    }
+      // Verify current password
+      const isValid = await compare(currentPassword, user.password);
+      if (!isValid) {
+        throw new UnauthorizedError('Current password is incorrect');
+      }
 
-    // Verify current password
-    const isPasswordValid = await compare(currentPassword, user.password || '');
+      // Hash new password
+      const hashedPassword = await hash(newPassword, 10);
 
-    if (!isPasswordValid) {
-      throw new Error('Current password is incorrect');
-    }
-
-    // Hash new password
-    const hashedPassword = await hash(newPassword, 10);
-
-    // Update password
-    await prisma.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
+      // Update password
+      await withDbError(
+        tx.user.update({
+          where: { id: userId },
+          data: { password: hashedPassword },
+        }),
+        'Failed to update password'
+      );
     });
   }
 

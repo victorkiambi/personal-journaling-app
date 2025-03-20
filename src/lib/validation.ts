@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import DOMPurify from 'dompurify';
 
 // Base schemas
 export const baseIdSchema = z.string().cuid();
@@ -81,18 +80,6 @@ export const analyticsQuerySchema = z.object({
   categoryId: z.string().nullable().optional(),
   timeRange: z.enum(['day', 'week', 'month', 'year']).default('week'),
 });
-
-// Input sanitization utilities
-export function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre'],
-    ALLOWED_ATTR: ['class'],
-  });
-}
-
-export function sanitizeText(text: string): string {
-  return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
-}
 
 // Validation error handling
 export class ValidationError extends Error {

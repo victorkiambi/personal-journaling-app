@@ -1,6 +1,10 @@
-import { prisma } from '@/lib/prisma';
 import natural from 'natural';
 import type { Prisma } from "@prisma/client";
+import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
+import { 
+  NotFoundError, 
+  DatabaseError 
+} from '@/lib/errors';
 
 type MoodStats = {
   very_positive: number;
@@ -26,7 +30,7 @@ export class SentimentService {
    * Analyze sentiment of a journal entry
    */
   static async analyzeSentiment(entryId: string) {
-    try {
+    return withTransaction(async (prisma) => {
       // Get the entry content
       const entry = await prisma.journalEntry.findUnique({
         where: { id: entryId },
@@ -34,7 +38,7 @@ export class SentimentService {
       });
 
       if (!entry) {
-        throw new Error('Entry not found');
+        throw new NotFoundError('Journal entry');
       }
 
       // Analyze sentiment using Natural
@@ -81,66 +85,69 @@ export class SentimentService {
         mood,
         sentences: this.analyzeSentences(entry.content)
       };
-    } catch (error) {
-      console.error('Error analyzing sentiment:', error);
-      throw error;
-    }
+    }, 'analyze sentiment');
   }
 
   /**
    * Get mood insights for a user
    */
   static async getMoodInsights(userId: string, timeRange: 'day' | 'week' | 'month' | 'year' = 'month') {
-    const now = new Date();
-    let startDate = new Date();
+    return withDbError(
+      async () => {
+        const prisma = getPrismaClient();
+        const now = new Date();
+        let startDate = new Date();
 
-    // Adjust date range
-    switch (timeRange) {
-      case 'day':
-        startDate.setHours(0, 0, 0, 0);
-        break;
-      case 'week':
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case 'month':
-        startDate.setMonth(now.getMonth() - 1);
-        break;
-      case 'year':
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-    }
-
-    // Get entries with sentiment data
-    const entries = await prisma.journalEntry.findMany({
-      where: {
-        userId,
-        createdAt: {
-          gte: startDate,
-          lte: now
+        // Adjust date range
+        switch (timeRange) {
+          case 'day':
+            startDate.setHours(0, 0, 0, 0);
+            break;
+          case 'week':
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case 'month':
+            startDate.setMonth(now.getMonth() - 1);
+            break;
+          case 'year':
+            startDate.setFullYear(now.getFullYear() - 1);
+            break;
         }
-      },
-      include: {
-        metadata: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
 
-    // Calculate mood statistics
-    const moodStats = this.calculateMoodStats(entries);
+        // Get entries with sentiment data
+        const entries = await prisma.journalEntry.findMany({
+          where: {
+            userId,
+            createdAt: {
+              gte: startDate,
+              lte: now
+            }
+          },
+          include: {
+            metadata: true
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        });
 
-    return {
-      entries: entries.map(entry => ({
-        id: entry.id,
-        title: entry.title,
-        date: entry.createdAt.toISOString(),
-        sentiment: entry.metadata?.sentimentScore ?? 0,
-        magnitude: entry.metadata?.sentimentMagnitude ?? 0,
-        mood: entry.metadata?.mood ?? 'neutral'
-      })),
-      statistics: moodStats
-    };
+        // Calculate mood statistics
+        const moodStats = this.calculateMoodStats(entries);
+
+        return {
+          entries: entries.map(entry => ({
+            id: entry.id,
+            title: entry.title,
+            date: entry.createdAt.toISOString(),
+            sentiment: entry.metadata?.sentimentScore ?? 0,
+            magnitude: entry.metadata?.sentimentMagnitude ?? 0,
+            mood: entry.metadata?.mood ?? 'neutral'
+          })),
+          statistics: moodStats
+        };
+      },
+      'fetch mood insights'
+    );
   }
 
   private static getMoodFromScore(score: number): Mood {

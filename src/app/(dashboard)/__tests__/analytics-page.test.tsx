@@ -32,60 +32,57 @@ describe('AnalyticsPage', () => {
       name: 'Test User',
       email: 'test@example.com',
     },
+    expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   }
 
   const mockAnalytics = {
     summary: {
       totalEntries: 10,
       totalWordCount: 2500,
+      currentStreak: 5,
+      avgWordsPerDay: 250,
+      avgWordCount: 250,
       longestEntry: {
+        id: 'entry123',
         title: 'My Longest Entry',
         wordCount: 500,
-        createdAt: '2024-03-15T12:00:00Z',
-      },
-      sentiment: {
-        averageScore: 0.75,
-        moodDistribution: {
-          very_positive: 3,
-          positive: 4,
-          neutral: 2,
-          negative: 1,
-          very_negative: 0,
-        },
+        date: '2024-03-20T12:00:00Z',
       },
     },
-    writingStreak: 5,
-    averageWordsPerDay: 250,
-    categoryDistribution: [
-      { category: 'Personal', count: 5, color: '#4ade80' },
-      { category: 'Work', count: 3, color: '#f87171' },
-      { category: 'Health', count: 2, color: '#60a5fa' },
+    sentiment: {
+      average: 0.7,
+      distribution: {
+        very_positive: 3,
+        positive: 4,
+        neutral: 2,
+        negative: 1,
+        very_negative: 0,
+      }
+    },
+    categories: [
+      {
+        category: 'Personal',
+        count: 5,
+        color: '#4ade80',
+      },
     ],
     monthlyActivity: [
       {
-        month: '2024-03-01',
-        entries: 5,
-        wordCount: 1000,
-      },
-      {
-        month: '2024-02-01',
-        entries: 3,
-        wordCount: 800,
-      },
-      {
-        month: '2024-01-01',
-        entries: 2,
-        wordCount: 700,
+        month: '2024-03',
+        entries: 10,
+        wordCount: 2500,
       },
     ],
   }
 
   beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks()
     const { getServerSession } = jest.requireMock('next-auth')
     getServerSession.mockResolvedValue(mockSession)
     ;(AnalyticsService.getAnalytics as jest.Mock).mockResolvedValue(mockAnalytics)
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
   })
 
   it('renders analytics page with all components', async () => {
@@ -116,15 +113,15 @@ describe('AnalyticsPage', () => {
     expect(screen.getByText('Personal')).toBeInTheDocument()
     
     // Check category counts
-    const personalEntry = screen.getByText((content, element) => {
-      return Boolean(element?.textContent === '5 entries' && element?.previousSibling?.textContent?.includes('Personal'))
-    })
-    expect(personalEntry).toBeInTheDocument()
+    expect(screen.getByText('5 entries')).toBeInTheDocument()
 
     // Check longest entry
     expect(screen.getByText('Longest Entry')).toBeInTheDocument()
     expect(screen.getByText('My Longest Entry')).toBeInTheDocument()
-    expect(screen.getByText((content) => content.startsWith('500 words'))).toBeInTheDocument()
+    const longestEntryText = screen.getByText((content, element) => {
+      return element?.tagName.toLowerCase() === 'p' && content.includes('500 words') && content.includes('Mar 20, 2024')
+    })
+    expect(longestEntryText).toBeInTheDocument()
   })
 
   it('redirects to login if no session', async () => {
@@ -145,12 +142,13 @@ describe('AnalyticsPage', () => {
       summary: {
         totalEntries: 0,
         totalWordCount: 0,
+        currentStreak: 0,
+        avgWordsPerDay: 0,
+        avgWordCount: 0,
         longestEntry: null,
-        sentiment: null,
       },
-      writingStreak: 0,
-      averageWordsPerDay: 0,
-      categoryDistribution: [],
+      sentiment: null,
+      categories: [],
       monthlyActivity: [],
     }
 
@@ -159,20 +157,11 @@ describe('AnalyticsPage', () => {
     const page = await AnalyticsPage()
     render(page)
 
-    // Check summary values
-    expect(screen.getByText((content, element) => {
-      return Boolean(content === '0' && element?.parentElement?.previousElementSibling?.textContent?.includes('Total Entries'))
-    })).toBeInTheDocument()
-
-    expect(screen.getByText((content, element) => {
-      return Boolean(content === '0' && element?.parentElement?.previousElementSibling?.textContent?.includes('Total Words'))
-    })).toBeInTheDocument()
-
+    // Check summary values for empty state
+    expect(screen.getByText('0', { selector: '[data-testid="total-entries"]' })).toBeInTheDocument()
+    expect(screen.getByText('0', { selector: '[data-testid="total-words"]' })).toBeInTheDocument()
     expect(screen.getByText('0 days')).toBeInTheDocument()
-
-    expect(screen.getByText((content, element) => {
-      return Boolean(content === '0' && element?.parentElement?.previousElementSibling?.textContent?.includes('Avg. Words/Day'))
-    })).toBeInTheDocument()
+    expect(screen.getByText('0', { selector: '[data-testid="avg-words"]' })).toBeInTheDocument()
 
     // Check empty state messages
     expect(screen.getByText('Start writing to build your streak')).toBeInTheDocument()

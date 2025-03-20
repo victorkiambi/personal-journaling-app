@@ -1,66 +1,164 @@
-import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import {
+  sanitizeCategory,
+  buildCategoryWhereClause,
+  processCategoryData,
+  categoryIncludeClause,
+  CategoryInclude
+} from '@/lib/category';
+import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
+import { 
+  NotFoundError, 
+  DuplicateError, 
+  InvalidOperationError,
+  DatabaseError 
+} from '@/lib/errors';
 
 export class CategoryService {
+  /**
+   * Get all categories for a user
+   * @param userId - The ID of the user
+   * @returns Array of categories with entry counts
+   */
   static async getCategories(userId: string) {
-    const categories = await prisma.category.findMany({
-      where: { userId },
-      orderBy: { name: 'asc' },
-    });
-
-    return categories;
+    return withDbError(
+      async () => {
+        const prisma = getPrismaClient();
+        return await prisma.category.findMany({
+          where: buildCategoryWhereClause(userId),
+          include: categoryIncludeClause,
+          orderBy: { name: 'asc' },
+        });
+      },
+      'fetch categories'
+    );
   }
 
+  /**
+   * Create a new category
+   * @param userId - The ID of the user
+   * @param data - The category data
+   * @returns The created category
+   */
   static async createCategory(userId: string, data: z.infer<typeof import('@/lib/validation').categorySchema>) {
-    const { color, ...rest } = data;
-    const category = await prisma.category.create({
-      data: {
-        ...rest,
-        userId,
-        color: color || '#000000', // Default color if not provided
-      },
-    });
+    return withTransaction(async (prisma) => {
+      // Sanitize and process data
+      const sanitizedData = sanitizeCategory(data);
+      const processedData = processCategoryData(sanitizedData);
 
-    return category;
+      // Check if category with same name exists
+      const existingCategory = await prisma.category.findFirst({
+        where: {
+          userId,
+          name: processedData.name,
+        },
+      });
+
+      if (existingCategory) {
+        throw new DuplicateError('category');
+      }
+
+      return await prisma.category.create({
+        data: {
+          ...processedData,
+          userId,
+        },
+        include: categoryIncludeClause,
+      });
+    }, 'create category');
   }
 
+  /**
+   * Get a single category by ID
+   * @param userId - The ID of the user
+   * @param categoryId - The ID of the category
+   * @returns The category
+   */
   static async getCategory(userId: string, categoryId: string) {
-    const category = await prisma.category.findFirst({
-      where: {
-        id: categoryId,
-        userId,
+    return withDbError(
+      async () => {
+        const prisma = getPrismaClient();
+        const category = await prisma.category.findFirst({
+          where: buildCategoryWhereClause(userId, categoryId),
+          include: categoryIncludeClause,
+        });
+
+        if (!category) {
+          throw new NotFoundError('Category');
+        }
+
+        return category;
       },
-    });
-
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    return category;
+      'fetch category'
+    );
   }
 
+  /**
+   * Update a category
+   * @param userId - The ID of the user
+   * @param categoryId - The ID of the category
+   * @param data - The updated category data
+   * @returns The updated category
+   */
   static async updateCategory(userId: string, categoryId: string, data: z.infer<typeof import('@/lib/validation').categorySchema>) {
-    const { color, ...rest } = data;
-    const category = await prisma.category.update({
-      where: {
-        id: categoryId,
-        userId,
-      },
-      data: {
-        ...rest,
-        color: color || '#000000', // Default color if not provided
-      },
-    });
+    return withTransaction(async (prisma) => {
+      // Sanitize and process data
+      const sanitizedData = sanitizeCategory(data);
+      const processedData = processCategoryData(sanitizedData);
 
-    return category;
+      // Check if another category with same name exists
+      const existingCategory = await prisma.category.findFirst({
+        where: {
+          userId,
+          name: processedData.name,
+          NOT: {
+            id: categoryId,
+          },
+        },
+      });
+
+      if (existingCategory) {
+        throw new DuplicateError('category');
+      }
+
+      return await prisma.category.update({
+        where: buildCategoryWhereClause(userId, categoryId),
+        data: processedData,
+        include: categoryIncludeClause,
+      });
+    }, 'update category');
   }
 
+  /**
+   * Delete a category
+   * @param userId - The ID of the user
+   * @param categoryId - The ID of the category
+   */
   static async deleteCategory(userId: string, categoryId: string) {
-    await prisma.category.delete({
-      where: {
-        id: categoryId,
-        userId,
-      },
-    });
+    return withTransaction(async (prisma) => {
+      // First check if the category has any entries
+      const category = await prisma.category.findFirst({
+        where: buildCategoryWhereClause(userId, categoryId),
+        include: {
+          _count: {
+            select: {
+              journalEntries: true,
+            },
+          },
+        },
+      });
+
+      if (!category) {
+        throw new NotFoundError('Category');
+      }
+
+      if (category._count.journalEntries > 0) {
+        throw new InvalidOperationError('Cannot delete category with existing entries');
+      }
+
+      await prisma.category.delete({
+        where: buildCategoryWhereClause(userId, categoryId),
+      });
+    }, 'delete category');
   }
 } 

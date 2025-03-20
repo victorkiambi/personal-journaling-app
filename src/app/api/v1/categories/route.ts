@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CategoryService } from '@/services/category.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { validateRequest, categorySchema, sanitizeText, handleValidationError } from '@/lib/validation';
+import { validateRequest, categorySchema, handleValidationError } from '@/lib/validation';
+import { sanitizeCategory } from '@/lib/category';
 
 export const config = {
   api: {
@@ -35,12 +36,9 @@ export async function POST(request: NextRequest) {
       const validatedData = await validateRequest(categorySchema, body);
       
       // Sanitize input
-      const sanitizedName = sanitizeText(validatedData.name);
+      const sanitizedData = sanitizeCategory(validatedData);
 
-      const category = await CategoryService.createCategory(userId, {
-        ...validatedData,
-        name: sanitizedName,
-      });
+      const category = await CategoryService.createCategory(userId, sanitizedData);
 
       return NextResponse.json({
         success: true,

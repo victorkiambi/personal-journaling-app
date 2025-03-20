@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JournalService } from '@/services/journal.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { validateRequest, journalEntrySchema, sanitizeHtml, handleValidationError } from '@/lib/validation';
+import { validateRequest, journalEntrySchema, handleValidationError } from '@/lib/validation';
+import { sanitizeJournalEntry } from '@/lib/journal';
 
 export const config = {
   api: {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
           categoryId: categoryId || undefined,
           startDate: startDate ? new Date(startDate) : undefined,
           endDate: endDate ? new Date(endDate) : undefined,
-          searchQuery: search ? sanitizeText(search) : undefined,
+          searchQuery: search || undefined,
         }
       );
 
@@ -54,14 +55,9 @@ export async function POST(request: NextRequest) {
       const validatedData = await validateRequest(journalEntrySchema, body);
       
       // Sanitize content
-      const sanitizedContent = sanitizeHtml(validatedData.content);
-      const sanitizedTitle = sanitizeText(validatedData.title);
+      const sanitizedData = sanitizeJournalEntry(validatedData);
 
-      const entry = await JournalService.createEntry(userId, {
-        ...validatedData,
-        title: sanitizedTitle,
-        content: sanitizedContent,
-      });
+      const entry = await JournalService.createEntry(userId, sanitizedData);
 
       return NextResponse.json({
         success: true,
