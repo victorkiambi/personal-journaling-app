@@ -112,6 +112,7 @@ model EntryMetadata {
   mood               String?
   sentimentMagnitude Float?
   sentimentScore     Float?
+  aiInsights         Json?        // Store AI-generated insights as JSON
   entry              JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([entryId])
