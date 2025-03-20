@@ -22,6 +22,7 @@ Shamiri Journal is a modern web application for personal journaling with sentime
 - **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: NextAuth.js with JWT
 - **Analytics**: Custom sentiment analysis
+- **State Management**: React Hooks + Context
 - **Testing**: Jest, React Testing Library
 - **Deployment**: Vercel
 
@@ -39,6 +40,9 @@ graph TD
     G --> I[PostgreSQL]
     H --> J[Sentiment Analysis]
     H --> K[Analytics]
+    D --> L[Profile Management]
+    L --> M[User Settings]
+    L --> N[Preferences]
 ```
 
 ### Component Architecture
@@ -54,9 +58,12 @@ graph TD
     C --> H[Journal]
     C --> I[Analytics]
     C --> J[Settings]
-    D --> K[Form Elements]
-    D --> L[Data Display]
-    D --> M[Feedback]
+    J --> K[PersonalInfoCard]
+    J --> L[PreferencesCard]
+    J --> M[AccountCard]
+    D --> N[Form Elements]
+    D --> O[Data Display]
+    D --> P[Feedback]
 ```
 
 ## Data Model
@@ -130,47 +137,149 @@ erDiagram
    - Attributes: email, name, password, createdAt, updatedAt
    - Relationships: one-to-many with JournalEntry, one-to-one with Profile and Settings
 
-2. **JournalEntry**
+2. **Profile**
+   - Primary key: id (UUID)
+   - Attributes: userId, bio, location, website, createdAt, updatedAt
+   - Relationships: one-to-one with User
+
+3. **Settings**
+   - Primary key: id (UUID)
+   - Attributes: userId, theme, emailNotifications, createdAt, updatedAt
+   - Relationships: one-to-one with User
+
+4. **JournalEntry**
    - Primary key: id (UUID)
    - Attributes: title, content, userId, createdAt, updatedAt
    - Relationships: many-to-many with Category, one-to-one with EntryMetadata
 
-3. **Category**
-   - Primary key: id (UUID)
-   - Attributes: name, color, userId, createdAt, updatedAt
-   - Relationships: many-to-many with JournalEntry
-
-4. **EntryMetadata**
-   - Primary key: id (UUID)
-   - Attributes: entryId, wordCount, readingTime, sentiment, createdAt, updatedAt
-   - Relationships: one-to-one with JournalEntry
-
 ## Security
 
-### Authentication Strategy
+### Authentication Flow
 
-1. **JWT-based Authentication**
-   - Secure token generation
-   - Token refresh mechanism
-   - Session management
-   - Protected routes
+1. **Route Protection**
+   - Protected routes under `/journal`, `/analytics`, `/settings`, and `/api/v1`
+   - Authentication middleware using NextAuth.js
+   - Automatic redirection to login for unauthenticated users
+   - Preservation of intended destination using URL parameters
 
-2. **Password Security**
+2. **Session Management**
+   - JWT-based session handling
+   - Secure token storage
+   - Automatic token refresh
+   - Session persistence across page reloads
+
+3. **Password Security**
    - Bcrypt hashing
    - Password complexity requirements
    - Rate limiting on login attempts
    - Secure password reset flow
 
-3. **API Security**
+### API Security
+
+1. **Request Protection**
    - CSRF protection
    - Rate limiting
    - Input validation
    - Error handling
 
-## Scaling
+2. **Data Access**
+   - User-scoped data access
+   - Permission-based authorization
+   - Secure data transmission
+   - Data encryption at rest
 
-### Current Architecture
+## UI Components
 
+### Profile Management
+
+1. **PersonalInfoCard**
+   - User name input
+   - Bio text input
+   - Location input
+   - Form validation
+   - Real-time updates
+
+2. **PreferencesCard**
+   - Theme selection (Light/Dark/System)
+   - Email notification toggle
+   - Preference persistence
+   - Immediate application
+
+3. **AccountCard**
+   - Email display
+   - Password management
+   - Account deletion option
+   - Security settings
+
+### State Management
+
+1. **Profile Hook (useProfile)**
+   - Profile data fetching
+   - Form state management
+   - Error handling
+   - Loading states
+   - Save functionality
+
+2. **Form Validation**
+   - Input validation
+   - Error messages
+   - Field requirements
+   - Submit validation
+
+### Feedback System
+
+1. **Toast Notifications**
+   - Success messages
+   - Error notifications
+   - Loading indicators
+   - Action confirmations
+
+2. **Loading States**
+   - Skeleton loaders
+   - Progress indicators
+   - Disabled states
+   - Transition animations
+
+## Future Considerations
+
+### Technical Improvements
+
+1. **Performance**
+   - Component lazy loading
+   - Image optimization
+   - API response caching
+   - Bundle size optimization
+
+2. **Accessibility**
+   - ARIA labels
+   - Keyboard navigation
+   - Screen reader support
+   - Color contrast
+
+3. **Testing**
+   - Unit tests for hooks
+   - Component integration tests
+   - E2E testing
+   - Performance testing
+
+### Feature Roadmap
+
+1. **Profile Enhancements**
+   - Profile picture upload
+   - Social media integration
+   - Activity history
+   - Custom themes
+
+2. **Security Updates**
+   - Two-factor authentication
+   - Session management
+   - Security audit logging
+   - Privacy controls
+
+3. **UI/UX Improvements**
+   - Mobile responsiveness
+   - Gesture controls
+   - Dark mode refinements
 1. **Database Scaling**
    - Indexed queries
    - Connection pooling

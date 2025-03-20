@@ -1,7 +1,7 @@
 # Database Schema Documentation
 
 ## Overview
-The Shamiri Journal application uses PostgreSQL as its database with Prisma ORM. The schema is designed to support user authentication, journal entries, categories, and user preferences.
+The Shamiri Journal application uses PostgreSQL as its database with Prisma ORM. The schema is designed to support user authentication, journal entries, categories, user profiles, and preferences with a focus on type safety and data integrity.
 
 ## Database Connection
 ```env
@@ -28,6 +28,8 @@ model User {
   settings      Settings?
   categories    Category[]
   journalEntries JournalEntry[]
+
+  @@index([email])
 }
 ```
 
@@ -93,22 +95,25 @@ model VerificationToken {
 ```
 
 ### Profile
-User profile information.
+Extended user profile information.
 ```prisma
 model Profile {
   id        String   @id @default(cuid())
   userId    String   @unique
-  bio       String?
+  bio       String?  @db.Text
   location  String?
   website   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 ```
 
 **Relationships:**
 - One-to-one with `User`
+- Cascade deletion with User
 
 ### Settings
 User preferences and application settings.
@@ -121,14 +126,17 @@ model Settings {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 ```
 
 **Relationships:**
 - One-to-one with `User`
+- Cascade deletion with User
 
 ### Category
-Journal entry categories for organization.
+Journal entry categories with enhanced organization.
 ```prisma
 model Category {
   id            String        @id @default(cuid())
@@ -139,6 +147,9 @@ model Category {
   updatedAt     DateTime      @updatedAt
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 ```
 
@@ -147,7 +158,7 @@ model Category {
 - Many-to-many with `JournalEntry`
 
 ### JournalEntry
-Main journal entry content.
+Main journal entry content with enhanced metadata.
 ```prisma
 model JournalEntry {
   id          String        @id @default(cuid())
@@ -159,6 +170,9 @@ model JournalEntry {
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   categories  Category[]
   metadata    EntryMetadata?
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, title])
 }
 ```
 
@@ -168,57 +182,107 @@ model JournalEntry {
 - One-to-one with `EntryMetadata`
 
 ### EntryMetadata
-Additional information about journal entries.
+Enhanced metadata for journal entries.
 ```prisma
 model EntryMetadata {
   id          String       @id @default(cuid())
   entryId     String       @unique
   wordCount   Int
   readingTime Int
+  sentiment   Json?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
 }
 ```
 
 **Relationships:**
 - One-to-one with `JournalEntry`
+- Cascade deletion with JournalEntry
 
-## Indexes and Constraints
-- Unique constraints on:
-  - User email
-  - Account provider and providerAccountId
-  - Session token
-  - VerificationToken identifier and token
-  - Profile userId
-  - Settings userId
-  - EntryMetadata entryId
+## Indexes and Performance
 
-## Cascading Deletes
-- When a user is deleted:
-  - All associated accounts are deleted
-  - All associated sessions are deleted
-  - Associated profile is deleted
-  - Associated settings are deleted
-  - All categories are deleted
-  - All journal entries are deleted
-- When a journal entry is deleted:
-  - Associated metadata is deleted
+### Primary Indexes
+- User email (unique)
+- Profile userId (unique)
+- Settings userId (unique)
+- Category [userId, name] (unique)
+- EntryMetadata entryId (unique)
 
-## Test Data
-The database includes test data for development:
-- Two test users with profiles and settings
-- Categories for each user
-- Sample journal entries with metadata
-- Realistic data spread across different days
+### Secondary Indexes
+- JournalEntry [userId, createdAt] for efficient listing
+- JournalEntry [userId, title] for search
+- Category [userId] for filtering
+- Profile [userId] for quick lookups
+- Settings [userId] for quick lookups
+
+## Data Integrity
+
+### Cascade Deletes
+1. User Deletion:
+   - Cascades to Profile
+   - Cascades to Settings
+   - Cascades to Categories
+   - Cascades to JournalEntries
+   - Cascades to Accounts
+   - Cascades to Sessions
+
+2. JournalEntry Deletion:
+   - Cascades to EntryMetadata
+   - Removes Category associations
+
+### Constraints
+1. User Constraints:
+   - Unique email
+   - Single profile
+   - Single settings record
+
+2. Category Constraints:
+   - Unique name per user
+   - Valid color format
+
+3. Profile Constraints:
+   - Single profile per user
+   - Optional bio and location
+
+4. Settings Constraints:
+   - Single settings per user
+   - Valid theme values
 
 ## Migration History
 1. `20250318055053_initial`: Initial schema
-2. `20250318111022_add_journal_indexes`: Added indexes for better performance
-3. `20250319044616_add_nextauth`: Added NextAuth.js related tables
+2. `20250318111022_add_journal_indexes`: Added performance indexes
+3. `20250319044616_add_nextauth`: Added NextAuth.js tables
+4. `20250320103045_enhance_profile`: Enhanced profile and settings
+5. `20250321092233_add_constraints`: Added unique constraints
+6. `20250322081512_optimize_indexes`: Optimized index structure
 
 ## Database Management
-- Use `npx prisma generate` to update Prisma Client after schema changes
-- Use `npx prisma migrate dev` to create and apply new migrations
+- Use `npx prisma generate` to update Prisma Client
+- Use `npx prisma migrate dev` to create migrations
 - Use `npx prisma db seed` to populate test data
-- Use `npx prisma studio` to view and edit data in a GUI 
+- Use `npx prisma studio` to manage data
+- Use `npx prisma format` to format schema
+
+## Error Handling
+The database implements proper error handling for:
+- Unique constraint violations
+- Foreign key violations
+- Data validation errors
+- Transaction failures
+
+## Monitoring
+Key metrics tracked:
+- Query performance
+- Index usage
+- Connection pool status
+- Transaction duration
+- Error rates
+
+## Backup Strategy
+1. Daily automated backups
+2. Point-in-time recovery
+3. Geo-redundant storage
+4. 30-day retention period 
