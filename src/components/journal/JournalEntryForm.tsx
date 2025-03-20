@@ -23,6 +23,7 @@ import {
 import { Category } from '@/types/category';
 import { formatDate } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
+import { RealTimeInsights } from './RealTimeInsights';
 
 interface JournalEntry {
   id: string;
@@ -234,6 +235,7 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
               className="min-h-[200px]"
               required
             />
+            <RealTimeInsights content={formData.content} title={formData.title} />
           </div>
 
           <div className="space-y-2">
