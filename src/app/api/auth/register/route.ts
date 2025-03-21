@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/auth.service';
-import { createErrorResponse } from '@/lib/api';
+import { handleApiError } from '@/app/api/middleware';
 import { validateRequest, registerSchema } from '@/lib/validation';
-import { DuplicateError, ValidationError } from '@/lib/errors';
 
 export const config = {
   api: {
@@ -27,24 +26,6 @@ export async function POST(request: NextRequest) {
       data: user
     });
   } catch (error) {
-    if (error instanceof ValidationError) {
-      return createErrorResponse({
-        status: 400,
-        message: error.message,
-        field: error.field
-      });
-    }
-
-    if (error instanceof DuplicateError) {
-      return createErrorResponse({
-        status: 409,
-        message: error.message
-      });
-    }
-
-    return createErrorResponse({
-      status: 500,
-      message: 'An unexpected error occurred during registration'
-    });
+    return handleApiError(error);
   }
 } 

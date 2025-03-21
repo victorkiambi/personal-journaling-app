@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CategoryService } from '@/services/category.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { validateRequest, categorySchema, handleValidationError } from '@/lib/validation';
+import { validateRequest, categorySchema } from '@/lib/validation';
 import { sanitizeCategory } from '@/lib/category';
+import { DEFAULT_CATEGORY_COLOR } from '@/lib/category';
 
 export const config = {
   api: {
@@ -36,7 +37,12 @@ export async function POST(request: NextRequest) {
       const validatedData = await validateRequest(categorySchema, body);
       
       // Sanitize input
-      const sanitizedData = sanitizeCategory(validatedData);
+      const sanitizedData = sanitizeCategory({
+        ...validatedData,
+        color: validatedData.color || DEFAULT_CATEGORY_COLOR,
+        description: validatedData.description || undefined,
+        parentId: validatedData.parentId || undefined
+      });
 
       const category = await CategoryService.createCategory(userId, sanitizedData);
 
@@ -45,7 +51,7 @@ export async function POST(request: NextRequest) {
         data: category
       });
     } catch (error) {
-      return handleValidationError(error);
+      return handleApiError(error);
     }
   });
 } 

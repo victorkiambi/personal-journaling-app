@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/auth.service';
 import { handleApiError } from '@/app/api/middleware';
-import { validateRequest, loginSchema, handleValidationError } from '@/lib/validation';
+import { validateRequest, loginSchema } from '@/lib/validation';
 
 export const config = {
   api: {
@@ -26,6 +26,6 @@ export async function POST(request: NextRequest) {
       data: session
     });
   } catch (error) {
-    return handleValidationError(error);
+    return handleApiError(error);
   }
 } 

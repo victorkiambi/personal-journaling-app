@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserService } from '@/services/user.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { validateRequest, settingsSchema, handleValidationError } from '@/lib/validation';
+import { validateRequest, settingsSchema } from '@/lib/validation';
+import type { SettingsData } from '@/types';
 
 export const config = {
   api: {
@@ -30,18 +31,21 @@ export async function PUT(request: NextRequest) {
   return withAuth(request, async (userId) => {
     try {
       const body = await request.json();
-      
-      // Validate request body
       const validatedData = await validateRequest(settingsSchema, body);
+      
+      const settingsData: SettingsData = {
+        theme: validatedData.theme || 'system',
+        emailNotifications: validatedData.emailNotifications ?? true
+      };
 
-      const settings = await UserService.updateSettings(userId, validatedData);
-
+      const settings = await UserService.updateSettings(userId, settingsData);
+  
       return NextResponse.json({
         success: true,
         data: settings
       });
     } catch (error) {
-      return handleValidationError(error);
+      return handleApiError(error);
     }
   });
 } 

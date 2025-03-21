@@ -3,6 +3,17 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import natural from 'natural';
 import { sanitizeContent } from '@/lib/sanitize';
+import { handleApiError } from '@/app/api/middleware';
+
+// API configuration
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+  maxDuration: 30, // 30 seconds
+};
 
 export async function POST(request: Request) {
   try {
@@ -31,9 +42,9 @@ export async function POST(request: Request) {
     const tfidf = new natural.TfIdf();
 
     // Analyze writing style
-    const sentences = sanitizedContent.split(/[.!?]+/);
+    const sentences = sanitizedContent.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const words = tokenizer.tokenize(sanitizedContent);
-    const complexity = words.length / sentences.length;
+    const complexity = sentences.length > 0 ? words.length / sentences.length : 0;
     const readability = calculateReadability(sanitizedContent);
     
     const suggestions = [];
@@ -71,30 +82,34 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
-    console.error('Error analyzing content:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 // Helper functions
 function calculateReadability(text: string): number {
-  const sentences = text.split(/[.!?]+/).length;
-  const words = text.trim().split(/\s+/).length;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+  
+  // Avoid division by zero
+  if (sentences === 0 || words === 0) {
+    return 0;
+  }
+  
   const syllables = countSyllables(text);
-
   return 206.835 - 1.015 * (words / sentences) - 84.6 * (syllables / words);
 }
 
 function countSyllables(text: string): number {
-  return text.toLowerCase()
+  const count = text.toLowerCase()
     .replace(/[^a-z]/g, '')
     .replace(/[^aeiouy]+/g, ' ')
     .trim()
     .split(' ')
+    .filter(s => s.length > 0)
     .length;
+  
+  return count > 0 ? count : 1; // Avoid returning zero
 }
 
 function getEmotionFromSentiment(score: number): string {

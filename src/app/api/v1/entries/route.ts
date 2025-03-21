@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JournalService } from '@/services/journal.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { validateRequest, journalEntrySchema, handleValidationError } from '@/lib/validation';
+import { validateRequest, journalEntrySchema } from '@/lib/validation';
 import { sanitizeJournalEntry } from '@/lib/journal';
 
 export const config = {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         data: entry
       });
     } catch (error) {
-      return handleValidationError(error);
+      return handleApiError(error);
     }
   });
 } 

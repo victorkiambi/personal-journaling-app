@@ -75,10 +75,10 @@ export const settingsSchema = z.object({
 
 // Analytics query schema
 export const analyticsQuerySchema = z.object({
-  startDate: z.string().nullable().optional(),
-  endDate: z.string().nullable().optional(),
-  categoryId: z.string().nullable().optional(),
-  timeRange: z.enum(['day', 'week', 'month', 'year']).default('week'),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  categoryId: z.string().optional(),
+  timeRange: z.enum(['day', 'week', 'month', 'year', 'all']).default('week'),
 });
 
 // Validation error handling

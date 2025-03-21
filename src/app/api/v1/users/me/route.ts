@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserService } from '@/services/user.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
-import { validateRequest, userSchema, sanitizeText, handleValidationError } from '@/lib/validation';
+import { validateRequest, userSchema } from '@/lib/validation';
+import { sanitizeContent } from '@/lib/sanitize';
 
 export const config = {
   api: {
@@ -34,12 +35,11 @@ export async function PUT(request: NextRequest) {
       // Validate request body
       const validatedData = await validateRequest(userSchema, body);
       
-      // Sanitize input
-      const sanitizedName = sanitizeText(validatedData.name);
-
       const user = await UserService.updateUser(userId, {
         ...validatedData,
-        name: sanitizedName,
+        name: sanitizeContent(validatedData.name),
+        bio: validatedData.bio ? sanitizeContent(validatedData.bio) : undefined,
+        location: validatedData.location ? sanitizeContent(validatedData.location) : undefined
       });
 
       return NextResponse.json({
@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest) {
         data: user
       });
     } catch (error) {
-      return handleValidationError(error);
+      return handleApiError(error);
     }
   });
 } 
