@@ -1,7 +1,7 @@
 import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
 import { hash, compare } from 'bcrypt';
 import { z } from 'zod';
-import { ValidationError, registerSchema, loginSchema } from '@/lib/validation';
+import { ValidationError, registerSchema, loginSchema, userSchema } from '@/lib/validation';
 import { DuplicateError, NotFoundError, UnauthorizedError } from '@/lib/errors';
 
 export class AuthService {
@@ -13,7 +13,7 @@ export class AuthService {
 
       // Check if user already exists
       const existingUser = await withDbError(
-        tx.user.findUnique({
+        () => tx.user.findUnique({
           where: { email },
           select: { id: true }
         }),
@@ -29,14 +29,15 @@ export class AuthService {
 
       // Create user with profile and settings
       const user = await withDbError(
-        tx.user.create({
+        () => tx.user.create({
           data: {
             email,
             name,
             password: hashedPassword,
             profile: {
               create: {
-                name,
+                bio: null,
+                location: null
               }
             },
             settings: {
@@ -56,7 +57,7 @@ export class AuthService {
       );
 
       return user;
-    });
+    }, 'register user');
   }
 
   static async login(data: z.infer<typeof loginSchema>) {
@@ -64,7 +65,7 @@ export class AuthService {
 
     // Find user
     const user = await withDbError(
-      this.prisma.user.findUnique({
+      () => this.prisma.user.findUnique({
         where: { email },
         select: {
           id: true,
@@ -97,7 +98,7 @@ export class AuthService {
     return withTransaction(async (tx) => {
       // Find user
       const user = await withDbError(
-        tx.user.findUnique({
+        () => tx.user.findUnique({
           where: { id: userId },
           select: {
             id: true,
@@ -122,73 +123,77 @@ export class AuthService {
 
       // Update password
       await withDbError(
-        tx.user.update({
+        () => tx.user.update({
           where: { id: userId },
           data: { password: hashedPassword },
         }),
         'Failed to update password'
       );
-    });
+    }, 'change password');
   }
 
   static async getCurrentUser(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        settings: true,
-        profile: true,
-      },
-    });
+    const user = await withDbError(
+      () => this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          settings: true,
+          profile: true,
+        },
+      }),
+      'Failed to get current user'
+    );
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundError('User not found');
     }
 
     return user;
   }
 
-  static async updateCurrentUser(userId: string, data: z.infer<typeof import('@/lib/validation').userSchema>) {
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name: data.name,
-        settings: {
-          upsert: {
-            create: {
-              theme: data.theme,
-              emailNotifications: data.emailNotifications,
+  static async updateCurrentUser(userId: string, data: z.infer<typeof userSchema>) {
+    return withDbError(
+      () => this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          name: data.name,
+          settings: {
+            upsert: {
+              create: {
+                theme: data.theme || 'system',
+                emailNotifications: data.emailNotifications || false,
+              },
+              update: {
+                theme: data.theme || 'system',
+                emailNotifications: data.emailNotifications || false,
+              },
             },
-            update: {
-              theme: data.theme,
-              emailNotifications: data.emailNotifications,
+          },
+          profile: {
+            upsert: {
+              create: {
+                bio: data.bio || null,
+                location: data.location || null,
+              },
+              update: {
+                bio: data.bio || null,
+                location: data.location || null,
+              },
             },
           },
         },
-        profile: {
-          upsert: {
-            create: {
-              bio: data.bio,
-              location: data.location,
-            },
-            update: {
-              bio: data.bio,
-              location: data.location,
-            },
-          },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          settings: true,
+          profile: true,
         },
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        settings: true,
-        profile: true,
-      },
-    });
-
-    return user;
+      }),
+      'Failed to update user'
+    );
   }
 } 
