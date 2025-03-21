@@ -2,121 +2,49 @@
 
 ## Base URL
 ```
-http://localhost:3000/api/v1
+https://shamiri-journal.fly.dev/api/v1
 ```
 
 ## Authentication
-All API endpoints (except login and register) require authentication using JWT tokens.
+All API endpoints require authentication using NextAuth.js sessions. The application automatically handles authentication via cookies set by NextAuth.js.
 
-Include the token in the Authorization header:
+Protected routes are secured using NextAuth.js middleware. When accessing the API programmatically, you'll need to include the session cookie.
+
+## Authentication
+
+### NextAuth.js Routes
+The following routes are automatically managed by NextAuth.js:
+
 ```
-Authorization: Bearer <your-jwt-token>
+/api/auth/signin
+/api/auth/callback
+/api/auth/signout
+/api/auth/session
+/api/auth/csrf
 ```
 
-## Authentication Endpoints
-
-### Register
+### Get Current User Session
 ```http
-POST /auth/register
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepassword",
-  "name": "John Doe"
-}
+GET /api/auth/session
 ```
 
 Response:
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "user-uuid",
-    "email": "user@example.com",
-    "name": "John Doe"
-  }
-}
-```
-
-### Login
-```http
-POST /auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepassword"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "user-uuid",
-      "email": "user@example.com",
-      "name": "John Doe"
-    },
-    "token": "jwt-token"
-  }
-}
-```
-
-### Get Current User
-```http
-GET /auth/me
-Authorization: Bearer <token>
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "user-uuid",
-    "email": "user@example.com",
+  "user": {
     "name": "John Doe",
-    "profile": {
-      "bio": "Software developer",
-      "location": "New York"
-    },
-    "settings": {
-      "theme": "light",
-      "emailNotifications": true
-    }
-  }
+    "email": "user@example.com",
+    "image": "https://example.com/profile.jpg"
+  },
+  "expires": "2023-04-19T12:00:00.000Z"
 }
 ```
 
-### Change Password
+### Profile Management
+
+#### Get User Profile
 ```http
-POST /auth/change-password
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "currentPassword": "currentpassword",
-  "newPassword": "newpassword"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "message": "Password updated successfully"
-}
-```
-
-## User Management
-
-### Get User Profile
-```http
-GET /users/me
-Authorization: Bearer <token>
+GET /api/v1/users/me
 ```
 
 Response:
@@ -136,10 +64,9 @@ Response:
 }
 ```
 
-### Update User Profile
+#### Update User Profile
 ```http
-PUT /users/profile
-Authorization: Bearer <token>
+PUT /api/v1/users/profile
 Content-Type: application/json
 
 {
@@ -163,6 +90,25 @@ Response:
       "website": "https://example.com"
     }
   }
+}
+```
+
+#### Change Password
+```http
+POST /api/v1/users/change-password
+Content-Type: application/json
+
+{
+  "currentPassword": "currentpassword",
+  "newPassword": "newpassword"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Password updated successfully"
 }
 ```
 
@@ -305,6 +251,159 @@ Response:
 {
   "success": true,
   "message": "Entry deleted successfully"
+}
+```
+
+## AI Features
+
+### Text Analysis
+
+#### Analyze Text Content
+```http
+POST /api/v1/analyze/text
+Content-Type: application/json
+
+{
+  "content": "Text content to analyze for suggestions and improvements."
+}
+```
+
+Response:
+```json
+{
+  "suggestions": [
+    {
+      "text": "Text content to analyze",
+      "confidence": 0.9,
+      "category": "grammar",
+      "replacement": "Text content to analyze.",
+      "explanation": "Grammar improvement suggestion",
+      "context": "Text content to analyze"
+    },
+    {
+      "text": "Text content to analyze for suggestions and improvements.",
+      "confidence": 0.8,
+      "category": "style",
+      "explanation": "Your writing could be more readable. Try using simpler words and shorter sentences."
+    }
+  ],
+  "autoCompletions": [
+    "with additional details and context."
+  ],
+  "writingStyle": {
+    "readability": 75,
+    "complexity": 5,
+    "suggestions": [
+      "Consider adding more descriptive language to enhance clarity."
+    ]
+  }
+}
+```
+
+### AI Insights
+
+#### Generate Insights for Journal Entry
+```http
+POST /api/v1/entries/{entry-id}/insights
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "insight-uuid-1",
+      "entryId": "entry-uuid",
+      "type": "theme",
+      "content": "This entry focuses on personal growth.",
+      "confidence": 0.85
+    },
+    {
+      "id": "insight-uuid-2",
+      "entryId": "entry-uuid",
+      "type": "pattern",
+      "content": "You tend to write more about personal development in the morning.",
+      "confidence": 0.75
+    },
+    {
+      "id": "insight-uuid-3",
+      "entryId": "entry-uuid",
+      "type": "recommendation",
+      "content": "Consider exploring your thoughts on career development in more detail.",
+      "confidence": 0.65
+    }
+  ]
+}
+```
+
+#### Get Insights for a Journal Entry
+```http
+GET /api/v1/entries/{entry-id}/insights
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "insight-uuid-1",
+      "entryId": "entry-uuid",
+      "type": "theme",
+      "content": "This entry focuses on personal growth.",
+      "confidence": 0.85,
+      "createdAt": "2024-03-19T10:00:00Z"
+    },
+    {
+      "id": "insight-uuid-2",
+      "entryId": "entry-uuid",
+      "type": "pattern",
+      "content": "You tend to write more about personal development in the morning.",
+      "confidence": 0.75,
+      "createdAt": "2024-03-19T10:00:00Z"
+    }
+  ]
+}
+```
+
+#### Get All User Insights
+```http
+GET /api/v1/insights?type=theme&timeRange=week
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "insight-uuid-1",
+      "entryId": "entry-uuid",
+      "type": "theme",
+      "content": "This entry focuses on personal growth.",
+      "confidence": 0.85,
+      "createdAt": "2024-03-19T10:00:00Z",
+      "entry": {
+        "id": "entry-uuid",
+        "title": "My Journal Entry",
+        "createdAt": "2024-03-19T10:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+#### Delete an Insight
+```http
+DELETE /api/v1/insights/{insight-id}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Insight deleted successfully"
 }
 ```
 
@@ -539,6 +638,41 @@ Currently, there are no rate limits implemented. However, it's recommended to im
   website: string;
   createdAt: Date;
   updatedAt: Date;
+}
+```
+
+### AI Insight
+```typescript
+{
+  id: string;
+  entryId: string;
+  userId: string;
+  type: 'theme' | 'pattern' | 'recommendation';
+  content: string;
+  confidence: number;
+  createdAt: Date;
+  updatedAt: Date;
+  entry?: JournalEntry;
+}
+```
+
+### Text Analysis
+```typescript
+{
+  suggestions: {
+    text: string;
+    confidence: number;
+    category: 'grammar' | 'style' | 'completion';
+    replacement?: string;
+    explanation?: string;
+    context?: string;
+  }[];
+  autoCompletions: string[];
+  writingStyle: {
+    readability: number;
+    complexity: number;
+    suggestions: string[];
+  };
 }
 ```
 

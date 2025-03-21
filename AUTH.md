@@ -1,46 +1,65 @@
 # Authentication Strategy Documentation
 
 ## Overview
-Shamiri Journal uses NextAuth.js (v4) with JWT-based authentication, integrated with Prisma ORM. The system provides secure, scalable authentication with session management and protected routes.
+Shamiri Journal uses NextAuth.js (v4) for authentication, integrated with Prisma ORM. The system provides secure, scalable authentication with session management, OAuth providers, and protected routes.
 
 ## Core Components
 
 ### 1. Authentication Stack
 - **Framework**: NextAuth.js v4
-- **Strategy**: JWT (JSON Web Tokens)
-- **Session Duration**: 30 days
+- **Strategy**: Email/Password
+- **Session Duration**: 7 days
 - **Database**: PostgreSQL with Prisma ORM
-- **Password Hashing**: bcryptjs
+- **Providers**: Email/Password
 
 ### 2. Authentication Flow
-1. **Registration**:
-   - Email, password, and name required
-   - Password hashing with bcryptjs
+1. **Registration & Login Options**:
+   - Email/Password authentication
    - Automatic profile and settings creation
-   - Email verification support (planned)
+   - Email verification support
 
-2. **Login**:
-   - Credentials-based authentication
-   - JWT token generation
-   - 30-day session management
+2. **Login Flow**:
+   - Secure session creation
+   - 7 day session management
    - Automatic redirection to `/journal`
 
 3. **Session Management**:
-   - JWT-based sessions in cookies
-   - Server-side validation
-   - Automatic refresh
-   - Secure storage
+   - NextAuth.js built-in session handling
+   - Secure cookie-based sessions
+   - Automatic session refresh
+   - CSRF protection
 
 ### 3. Security Features
-- Password hashing with bcryptjs
-- JWT token authentication
+- Secure session management
 - Protected API routes
-- CSRF protection
+- CSRF protection built-in
 - Secure cookie handling
 - Rate limiting capability
 
 ### 4. Protected Routes
+All routes under the following paths are protected by NextAuth.js middleware:
 ```typescript
+export const config = {
+  matcher: [
+    '/journal/:path*',
+    '/categories/:path*',
+    '/analytics/:path*',
+    '/profile/:path*',
+    '/settings/:path*',
+    '/api/v1/:path*',
+  ]
+}
+```
+
+### Environment Variables
+```env
+# NextAuth
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-nextauth-secret-key
+```
+
+
+
 const protectedRoutes = [
   '/journal/:path*',
   '/categories/:path*',

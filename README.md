@@ -2,9 +2,27 @@
 
 A modern, full-stack journaling application built with Next.js, TypeScript, and PostgreSQL.
 
+## Live Demo
+
+The application is deployed and accessible at: [https://shamiri-journal.fly.dev](https://shamiri-journal.fly.dev)
+
+### Accessing the Application
+
+1. Visit [https://shamiri-journal.fly.dev](https://shamiri-journal.fly.dev)
+2. Create a new account or use the demo credentials:
+   - Email: john@example.com
+   - Password: Password123! (for testing purposes only)
+3. Start journaling! The application features:
+   - Real-time writing suggestions
+   - Grammar corrections
+   - Style analysis
+   - Auto-completions
+   - Sentiment analysis
+   - Personal insights
+
 ## Features
 
-- User authentication with JWT
+- User authentication with NextAuth.js
 - Create, read, update, and delete journal entries
 - Categorize entries with a flexible tagging system
 - Rich text editing
@@ -16,7 +34,7 @@ A modern, full-stack journaling application built with Next.js, TypeScript, and 
 - **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: JWT with bcrypt for password hashing
+- **Authentication**: NextAuth.js with OAuth providers
 - **State Management**: React Context + Hooks
 - **Styling**: Tailwind CSS
 - **Development**: Docker for database
@@ -56,6 +74,39 @@ A modern, full-stack journaling application built with Next.js, TypeScript, and 
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Deployment
+
+The application is deployed on [fly.io](https://fly.io). To deploy your own instance:
+
+1. Install the Fly CLI:
+   ```bash
+   # macOS
+   brew install flyctl
+   # Windows
+   scoop install flyctl
+   # Linux
+   curl -L https://fly.io/install.sh | sh
+   ```
+
+2. Login to Fly:
+   ```bash
+   fly auth login
+   ```
+
+3. Deploy the application:
+   ```bash
+   fly deploy
+   ```
+
+4. Set up environment variables:
+   ```bash
+   fly secrets set DATABASE_URL="your-production-database-url"
+   fly secrets set JWT_SECRET="your-production-jwt-secret"
+   # Add other necessary environment variables
+   ```
+
+5. Access your deployed application at `https://your-app-name.fly.dev`
+
 ## Environment Variables
 
 Create a `.env` file in the root directory with the following variables:
@@ -64,13 +115,16 @@ Create a `.env` file in the root directory with the following variables:
 # Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/shamiri_journal?schema=public"
 
-# Authentication
-JWT_SECRET="your-super-secret-key-change-in-production"
-JWT_EXPIRES_IN="7d"
+# NextAuth.js Configuration
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-nextauth-secret-key-change-in-production"
 
 # Application
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NODE_ENV="development"
+
+# AI Features
+HUGGINGFACE_API_KEY="your-huggingface-api-key"
 ```
 
 ## Project Structure

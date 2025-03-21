@@ -20,11 +20,11 @@ Shamiri Journal is a modern web application for personal journaling with sentime
 - **Frontend**: Next.js 14, React, TypeScript, shadcn/ui, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js with JWT
-- **Analytics**: Custom sentiment analysis
+- **Authentication**: NextAuth.js with OAuth providers and email authentication
+- **Analytics**: Custom sentiment analysis with Hugging Face models
 - **State Management**: React Hooks + Context
 - **Testing**: Jest, React Testing Library
-- **Deployment**: Vercel
+- **Deployment**: Fly.io
 
 ### System Architecture Diagram
 
@@ -163,30 +163,51 @@ erDiagram
    - Preservation of intended destination using URL parameters
 
 2. **Session Management**
-   - JWT-based session handling
-   - Secure token storage
-   - Automatic token refresh
+   - NextAuth.js session handling
+   - Secure cookie-based session storage
+   - Automatic session refresh
    - Session persistence across page reloads
+   - OAuth state validation
 
-3. **Password Security**
-   - Bcrypt hashing
-   - Password complexity requirements
-   - Rate limiting on login attempts
+3. **Authentication Methods**
+   - Email/Password authentication
+   - OAuth providers (Google, GitHub)
+   - Email verification
    - Secure password reset flow
+   - Rate limiting on authentication attempts
 
 ### API Security
 
 1. **Request Protection**
-   - CSRF protection
+   - CSRF protection via NextAuth.js
    - Rate limiting
-   - Input validation
-   - Error handling
+   - Input validation using Zod
+   - Standardized error handling
 
 2. **Data Access**
    - User-scoped data access
-   - Permission-based authorization
-   - Secure data transmission
+   - Session-based authorization
+   - Secure data transmission with HTTPS
    - Data encryption at rest
+
+### OAuth Integration
+
+1. **Supported Providers**
+   - Google OAuth 2.0
+   - GitHub OAuth
+   - Extensible provider system
+
+2. **Provider Configuration**
+   - Secure client ID and secret management
+   - Callback URL handling
+   - Scope management
+   - Profile data mapping
+
+3. **Session Security**
+   - Encrypted session tokens
+   - Secure cookie handling
+   - Cross-site request forgery protection
+   - Token rotation
 
 ## UI Components
 
