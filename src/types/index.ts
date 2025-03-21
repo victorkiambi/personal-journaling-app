@@ -54,11 +54,4 @@ export type ProfileData = {
   bio?: string;
   location?: string;
   avatar?: string;
-};
-
-export type AnalyticsQuery = {
-  startDate?: string;
-  endDate?: string;
-  categoryId?: string;
-  timeRange?: 'day' | 'week' | 'month' | 'year' | 'all';
 }; 

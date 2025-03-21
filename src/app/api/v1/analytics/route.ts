@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AnalyticsService } from '@/services/analytics.service';
+import { AnalyticsService, AnalyticsQueryOptions } from '@/services/analytics.service';
 import { withAuth, handleApiError } from '@/app/api/middleware';
 import { validateRequest, analyticsQuerySchema } from '@/lib/validation';
-import type { AnalyticsQuery } from '@/types';
 
 export const config = {
   api: {
@@ -32,7 +31,7 @@ export async function GET(request: NextRequest) {
         timeRange,
       });
 
-      const analytics = await AnalyticsService.getAnalytics(userId, validatedData as AnalyticsQuery);
+      const analytics = await AnalyticsService.getAnalytics(userId, validatedData as AnalyticsQueryOptions);
 
       return NextResponse.json({
         success: true,

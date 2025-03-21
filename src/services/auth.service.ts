@@ -1,7 +1,7 @@
 import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
 import { hash, compare } from 'bcrypt';
 import { z } from 'zod';
-import { ValidationError, registerSchema, loginSchema, userSchema } from '@/lib/validation';
+import { registerSchema, loginSchema, userSchema } from '@/lib/validation';
 import { DuplicateError, NotFoundError, UnauthorizedError } from '@/lib/errors';
 
 export class AuthService {

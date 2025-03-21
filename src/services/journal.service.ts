@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { JournalEntryData, PaginatedResponse } from '@/types';
+import type { JournalEntryData, PaginatedResponse } from '@/types';
 
 // Create a singleton instance of PrismaClient
 const prisma = new PrismaClient({
@@ -115,7 +115,7 @@ export class JournalService {
         maxWait: 5000, // Maximum time to wait for transaction to start
         isolationLevel: 'ReadCommitted' // Use a less strict isolation level
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in updateEntry:', error);
       if (error.code === 'P2025') {
         throw new Error('Entry not found or you do not have permission to update it');
@@ -181,7 +181,7 @@ export class JournalService {
   ): Promise<PaginatedResponse<any>> {
     // Use a transaction to ensure consistent results
     return await prisma.$transaction(async (tx) => {
-      const where = {
+      const where: any = {
         userId,
         ...(filters?.categoryId && {
           categories: {

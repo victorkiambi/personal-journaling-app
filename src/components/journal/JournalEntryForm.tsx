@@ -23,7 +23,7 @@ import {
 import { Category } from '@/types/category';
 import { formatDate } from '@/lib/utils';
 import { useSession } from 'next-auth/react';
-import { RealTimeInsights } from './RealTimeInsights';
+import { TextSuggestions } from './TextSuggestions';
 
 interface JournalEntry {
   id: string;
@@ -146,6 +146,20 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
     setReadingTime(time);
   };
 
+  const handleApplySuggestion = (replacement: string) => {
+    setFormData(prev => ({
+      ...prev,
+      content: prev.content + ' ' + replacement
+    }));
+  };
+
+  const handleSelectCompletion = (completion: string) => {
+    setFormData(prev => ({
+      ...prev,
+      content: prev.content + ' ' + completion
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -235,7 +249,11 @@ export default function JournalEntryForm({ entryId, isEditing = false }: Journal
               className="min-h-[200px]"
               required
             />
-            <RealTimeInsights content={formData.content} title={formData.title} />
+            <TextSuggestions
+              content={formData.content}
+              onApplySuggestion={handleApplySuggestion}
+              onSelectCompletion={handleSelectCompletion}
+            />
           </div>
 
           <div className="space-y-2">

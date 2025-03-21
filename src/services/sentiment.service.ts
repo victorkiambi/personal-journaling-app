@@ -3,7 +3,6 @@ import type { Prisma } from "@prisma/client";
 import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
 import { 
   NotFoundError, 
-  DatabaseError 
 } from '@/lib/errors';
 
 type MoodStats = {
@@ -187,8 +186,8 @@ export class SentimentService {
   }
 
   private static analyzeSentences(content: string) {
-    const sentenceTokenizer = new natural.SentenceTokenizer();
-    const sentences = sentenceTokenizer.tokenize(content);
+    // Split content into sentences using simple regex
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const wordTokenizer = new natural.WordTokenizer();
 
     return sentences.map(sentence => {

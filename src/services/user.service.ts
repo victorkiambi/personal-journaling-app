@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
 import { 
   NotFoundError, 
-  DatabaseError 
 } from '@/lib/errors';
 
 export class UserService {

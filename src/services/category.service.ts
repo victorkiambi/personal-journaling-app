@@ -3,16 +3,15 @@ import {
   sanitizeCategory,
   buildCategoryWhereClause,
   processCategoryData,
-  categoryIncludeClause,
-  CategoryInclude
+  categoryIncludeClause
 } from '@/lib/category';
 import { getPrismaClient, withDbError, withTransaction } from '@/lib/db';
 import { 
   NotFoundError, 
   DuplicateError, 
   InvalidOperationError,
-  DatabaseError 
 } from '@/lib/errors';
+import type { CategoryData } from '@/types';
 
 export class CategoryService {
   /**
@@ -42,8 +41,16 @@ export class CategoryService {
    */
   static async createCategory(userId: string, data: z.infer<typeof import('@/lib/validation').categorySchema>) {
     return withTransaction(async (prisma) => {
+      // Prepare data for processing
+      const preparedData: CategoryData = {
+        name: data.name,
+        color: data.color || '#000000', // Ensure color is always defined
+        description: data.description ?? undefined,
+        parentId: data.parentId ?? undefined
+      };
+
       // Sanitize and process data
-      const sanitizedData = sanitizeCategory(data);
+      const sanitizedData = sanitizeCategory(preparedData);
       const processedData = processCategoryData(sanitizedData);
 
       // Check if category with same name exists
@@ -102,8 +109,16 @@ export class CategoryService {
    */
   static async updateCategory(userId: string, categoryId: string, data: z.infer<typeof import('@/lib/validation').categorySchema>) {
     return withTransaction(async (prisma) => {
+      // Prepare data for processing
+      const preparedData: CategoryData = {
+        name: data.name,
+        color: data.color || '#000000', // Ensure color is always defined
+        description: data.description ?? undefined,
+        parentId: data.parentId ?? undefined
+      };
+
       // Sanitize and process data
-      const sanitizedData = sanitizeCategory(data);
+      const sanitizedData = sanitizeCategory(preparedData);
       const processedData = processCategoryData(sanitizedData);
 
       // Check if another category with same name exists
@@ -121,8 +136,17 @@ export class CategoryService {
         throw new DuplicateError('category');
       }
 
-      return await prisma.category.update({
+      // First verify the category exists and belongs to the user
+      const category = await prisma.category.findFirst({
         where: buildCategoryWhereClause(userId, categoryId),
+      });
+
+      if (!category) {
+        throw new NotFoundError('Category');
+      }
+
+      return await prisma.category.update({
+        where: { id: categoryId },
         data: processedData,
         include: categoryIncludeClause,
       });
@@ -157,7 +181,7 @@ export class CategoryService {
       }
 
       await prisma.category.delete({
-        where: buildCategoryWhereClause(userId, categoryId),
+        where: { id: categoryId },
       });
     }, 'delete category');
   }
