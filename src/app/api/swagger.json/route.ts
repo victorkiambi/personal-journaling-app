@@ -22,6 +22,53 @@ export async function GET() {
           bearerFormat: 'JWT',
         },
       },
+      schemas: {
+        TextAnalysis: {
+          type: 'object',
+          properties: {
+            suggestions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string' },
+                  confidence: { type: 'number' },
+                  category: { type: 'string', enum: ['grammar', 'style', 'completion'] },
+                  replacement: { type: 'string' },
+                  explanation: { type: 'string' },
+                  context: { type: 'string' }
+                }
+              }
+            },
+            autoCompletions: {
+              type: 'array',
+              items: { type: 'string' }
+            },
+            writingStyle: {
+              type: 'object',
+              properties: {
+                readability: { type: 'number' },
+                complexity: { type: 'number' },
+                suggestions: {
+                  type: 'array',
+                  items: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        AIInsight: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            entryId: { type: 'string' },
+            type: { type: 'string', enum: ['theme', 'pattern', 'recommendation'] },
+            content: { type: 'string' },
+            confidence: { type: 'number' },
+            createdAt: { type: 'string', format: 'date-time' }
+          }
+        }
+      }
     },
     security: [
       {
@@ -727,6 +774,187 @@ export async function GET() {
           },
         },
       },
+      '/analyze/text': {
+        post: {
+          summary: 'Analyze text content for suggestions and improvements',
+          tags: ['AI Features'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['content'],
+                  properties: {
+                    content: {
+                      type: 'string',
+                      description: 'Text content to analyze'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Text analysis completed successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: { $ref: '#/components/schemas/TextAnalysis' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/entries/{entryId}/insights': {
+        post: {
+          summary: 'Generate AI insights for a journal entry',
+          tags: ['AI Features'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'entryId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'AI insights generated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/AIInsight' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        get: {
+          summary: 'Get AI insights for a journal entry',
+          tags: ['AI Features'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'entryId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'AI insights retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/AIInsight' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/insights': {
+        get: {
+          summary: 'Get all user insights with filtering options',
+          tags: ['AI Features'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'type',
+              in: 'query',
+              schema: {
+                type: 'string',
+                enum: ['theme', 'pattern', 'recommendation']
+              }
+            },
+            {
+              name: 'timeRange',
+              in: 'query',
+              schema: {
+                type: 'string',
+                enum: ['day', 'week', 'month', 'year']
+              }
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'User insights retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      data: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/AIInsight' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/insights/{insightId}': {
+        delete: {
+          summary: 'Delete an AI insight',
+          tags: ['AI Features'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'insightId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'AI insight deleted successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      message: { type: 'string' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     },
   };
 

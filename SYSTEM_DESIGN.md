@@ -1,497 +1,389 @@
-# Shamiri Journal - System Design Document
-
-## Table of Contents
-1. [Overview](#overview)
-2. [Architecture](#architecture)
-3. [Data Model](#data-model)
-4. [Security](#security)
-5. [Scaling](#scaling)
-6. [Setup Guide](#setup-guide)
-7. [Documentation References](#documentation-references)
+# Shamiri Journal System Design
 
 ## Overview
 
-Shamiri Journal is a modern web application for personal journaling with sentiment analysis and analytics features. The application is built using Next.js 14, TypeScript, and shadcn/ui components.
+Shamiri Journal is a modern journaling application that combines traditional journaling with AI-powered features to enhance the user's writing experience. The system is designed to be scalable, maintainable, and user-friendly while providing advanced features like sentiment analysis, writing style analysis, and AI-generated insights.
 
 ## Architecture
 
 ### Technology Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, shadcn/ui, Tailwind CSS
+- **Frontend**: Next.js 14 with App Router, React, TailwindCSS
 - **Backend**: Next.js API Routes
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js with email authentication
-- **Analytics**: 
-  - Sentiment Analysis: Natural.js with AFINN lexicon
-  - AI Insights: Hugging Face Transformers
-- **State Management**: React Hooks + Context
-- **Testing**: Jest, React Testing Library
+- **Authentication**: NextAuth.js with JWT
+- **AI/ML**: 
+  - Natural.js for text analysis
+  - Hugging Face for AI insights generation
 - **Deployment**: Fly.io
+- **Testing**: Jest, React Testing Library
+- **Documentation**: Swagger/OpenAPI
 
-### System Architecture Diagram
+### System Components
 
-```mermaid
-graph TD
-    A[Client Browser] --> B[Next.js App]
-    B --> C[Authentication]
-    B --> D[API Routes]
-    B --> E[Static Assets]
-    C --> F[NextAuth.js]
-    D --> G[Database]
-    D --> H[External Services]
-    G --> I[PostgreSQL]
-    H --> J[Sentiment Analysis]
-    H --> K[Analytics]
-    H --> L[Hugging Face]
-    D --> M[Profile Management]
-    M --> N[User Settings]
-    M --> O[Preferences]
-```
+1. **Frontend Application**
+   - Next.js App Router for routing
+   - React components for UI
+   - TailwindCSS for styling
+   - Client-side state management
+   - Responsive design
 
-### Component Architecture
+2. **Backend Services**
+   - Next.js API Routes
+   - Authentication middleware
+   - Database operations
+   - AI/ML services
+   - Rate limiting
+   - Error handling
 
-```mermaid
-graph TD
-    A[Pages] --> B[Layout Components]
-    A --> C[Feature Components]
-    A --> D[UI Components]
-    B --> E[Navigation]
-    B --> F[Header]
-    B --> G[Footer]
-    C --> H[Journal]
-    C --> I[Analytics]
-    C --> J[Settings]
-    J --> K[PersonalInfoCard]
-    J --> L[PreferencesCard]
-    J --> M[AccountCard]
-    D --> N[Form Elements]
-    D --> O[Data Display]
-    D --> P[Feedback]
-```
+3. **Database Layer**
+   - PostgreSQL database
+   - Prisma ORM for database operations
+   - Database migrations
+   - Connection pooling
+   - Query optimization
 
-## Data Model
-
-### Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    User {
-        string id PK
-        string email
-        string name
-        string password
-        datetime createdAt
-        datetime updatedAt
-    }
-    JournalEntry {
-        string id PK
-        string title
-        string content
-        string userId FK
-        datetime createdAt
-        datetime updatedAt
-    }
-    Category {
-        string id PK
-        string name
-        string color
-        string userId FK
-        datetime createdAt
-        datetime updatedAt
-    }
-    Profile {
-        string id PK
-        string userId FK
-        string bio
-        string location
-        string website
-        datetime createdAt
-        datetime updatedAt
-    }
-    Settings {
-        string id PK
-        string userId FK
-        string theme
-        boolean emailNotifications
-        datetime createdAt
-        datetime updatedAt
-    }
-    EntryMetadata {
-        string id PK
-        string entryId FK
-        int wordCount
-        int readingTime
-        float sentimentScore
-        float sentimentMagnitude
-        string mood
-        json aiInsights
-        datetime createdAt
-        datetime updatedAt
-    }
-    User ||--o{ JournalEntry : creates
-    User ||--o{ Category : creates
-    User ||--|| Profile : has
-    User ||--|| Settings : has
-    JournalEntry ||--|| EntryMetadata : has
-    JournalEntry }o--o{ Category : belongs_to
-```
-
-### Core Entities
-
-1. **User**
-   - Primary key: id (UUID)
-   - Attributes: email, name, password, createdAt, updatedAt
-   - Relationships: one-to-many with JournalEntry, one-to-one with Profile and Settings
-
-2. **Profile**
-   - Primary key: id (UUID)
-   - Attributes: userId, bio, location, website, createdAt, updatedAt
-   - Relationships: one-to-one with User
-
-3. **Settings**
-   - Primary key: id (UUID)
-   - Attributes: userId, theme, emailNotifications, createdAt, updatedAt
-   - Relationships: one-to-one with User
-
-4. **JournalEntry**
-   - Primary key: id (UUID)
-   - Attributes: title, content, userId, createdAt, updatedAt
-   - Relationships: many-to-many with Category, one-to-one with EntryMetadata
-
-5. **EntryMetadata**
-   - Primary key: id (UUID)
-   - Attributes: entryId, wordCount, readingTime, sentimentScore, sentimentMagnitude, mood, aiInsights
-   - Relationships: one-to-one with JournalEntry
-
-## Sentiment Analysis & AI Features
-
-### Natural.js Sentiment Analysis
-
-1. **Implementation**
-   - Uses Natural.js library with AFINN lexicon
-   - Tokenization using WordTokenizer
-   - Sentiment scoring with SentimentAnalyzer
-   - Normalized scores (-1 to 1 range)
-   - Mood classification based on score thresholds
-
-2. **Features**
-   - Word-level sentiment analysis
-   - Sentence-level analysis
-   - Magnitude calculation for sentiment strength
-   - Mood categorization (very_positive, positive, neutral, negative, very_negative)
-   - Performance optimized for real-time analysis
-
-3. **Processing Flow**
-   ```mermaid
-   graph LR
-       A[Entry Content] --> B[Tokenization]
-       B --> C[Sentiment Analysis]
-       C --> D[Score Normalization]
-       D --> E[Mood Classification]
-       E --> F[Metadata Storage]
-   ```
-
-### Hugging Face Integration
-
-1. **Models Used**
-   - Text Classification for topic detection
-   - Zero-shot classification for content categorization
-   - Text generation for writing prompts
-
-2. **Features**
-   - Topic detection and classification
-   - Content summarization
+4. **AI/ML Services**
+   - Text analysis service
+   - Sentiment analysis
    - Writing style analysis
-   - Theme extraction
+   - AI insights generation
+   - Theme detection
    - Pattern recognition
 
-3. **Implementation**
-   - REST API integration with Hugging Face Inference API
-   - Rate limiting and error handling
-   - Caching of model responses
-   - Batch processing for multiple entries
+5. **Authentication System**
+   - NextAuth.js integration
+   - JWT token management
+   - Session handling
+   - Password hashing
+   - Security middleware
 
-4. **Processing Flow**
-   ```mermaid
-   graph LR
-       A[Entry Content] --> B[API Request]
-       B --> C[Model Processing]
-       C --> D[Response Parsing]
-       D --> E[Insight Generation]
-       E --> F[Metadata Storage]
+## Database Schema
+
+### Core Models
+
+1. **User**
+   ```prisma
+   model User {
+     id        String   @id @default(cuid())
+     email     String   @unique
+     password  String
+     name      String?
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     sessions  Session[]
+     profile   Profile?
+     settings  Settings?
+     categories Category[]
+     entries   JournalEntry[]
+     insights  AIInsight[]
+   }
    ```
 
-5. **Security**
-   - API key management via environment variables
-   - Request validation
-   - Response sanitization
-   - Error handling and fallbacks
+2. **Session**
+   ```prisma
+   model Session {
+     id        String   @id @default(cuid())
+     userId    String
+     expiresAt DateTime
+     createdAt DateTime @default(now())
+     user      User     @relation(fields: [userId], references: [id])
+   }
+   ```
 
-## Security
+3. **Profile**
+   ```prisma
+   model Profile {
+     id        String   @id @default(cuid())
+     userId    String   @unique
+     bio       String?
+     location  String?
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     user      User     @relation(fields: [userId], references: [id])
+   }
+   ```
 
-### Authentication Flow
+4. **Settings**
+   ```prisma
+   model Settings {
+     id        String   @id @default(cuid())
+     userId    String   @unique
+     theme     String   @default("light")
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     user      User     @relation(fields: [userId], references: [id])
+   }
+   ```
 
-1. **Route Protection**
-   - Protected routes under `/journal`, `/analytics`, `/settings`, and `/api/v1`
-   - Authentication middleware using NextAuth.js
-   - Automatic redirection to login for unauthenticated users
-   - Preservation of intended destination using URL parameters
+### Journal Models
 
-2. **Session Management**
-   - NextAuth.js session handling
-   - Secure cookie-based session storage
-   - Automatic session refresh
-   - Session persistence across page reloads
+1. **Category**
+   ```prisma
+   model Category {
+     id        String   @id @default(cuid())
+     name      String
+     color     String
+     userId    String
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     user      User     @relation(fields: [userId], references: [id])
+     entries   JournalEntry[]
+   }
+   ```
 
-3. **Authentication Methods**
-   - Email/Password authentication
-   - Secure password reset flow
-   - Rate limiting on authentication attempts
+2. **JournalEntry**
+   ```prisma
+   model JournalEntry {
+     id        String   @id @default(cuid())
+     title     String
+     content   String
+     userId    String
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+     user      User     @relation(fields: [userId], references: [id])
+     categories Category[]
+     metadata  EntryMetadata?
+     insights  AIInsight[]
+   }
+   ```
 
-### API Security
+3. **EntryMetadata**
+   ```prisma
+   model EntryMetadata {
+     id              String   @id @default(cuid())
+     entryId         String   @unique
+     wordCount       Int
+     readingTime     Int
+     sentimentScore  Float?
+     sentimentMagnitude Float?
+     mood            String?
+     readability     Float?
+     complexity      Float?
+     entry           JournalEntry @relation(fields: [entryId], references: [id])
+   }
+   ```
 
-1. **Request Protection**
-   - CSRF protection via NextAuth.js
+### AI Models
+
+1. **AIInsight**
+   ```prisma
+   model AIInsight {
+     id        String   @id @default(cuid())
+     entryId   String
+     userId    String
+     type      String   // theme, pattern, recommendation
+     content   String
+     confidence Float
+     createdAt DateTime @default(now())
+     entry     JournalEntry @relation(fields: [entryId], references: [id])
+     user      User     @relation(fields: [userId], references: [id])
+   }
+   ```
+
+## API Design
+
+### Authentication Endpoints
+
+1. **Register**
+   - POST `/api/v1/auth/register`
+   - Request: email, password, name
+   - Response: user data
+
+2. **Login**
+   - POST `/api/v1/auth/login`
+   - Request: email, password
+   - Response: user data, token
+
+3. **Get Current User**
+   - GET `/api/v1/auth/me`
+   - Response: user data with profile and settings
+
+### Journal Entry Endpoints
+
+1. **List Entries**
+   - GET `/api/v1/entries`
+   - Query params: page, pageSize, categoryId, startDate, endDate, search
+   - Response: paginated entries with metadata
+
+2. **Create Entry**
+   - POST `/api/v1/entries`
+   - Request: title, content, categoryIds
+   - Response: created entry with metadata
+
+3. **Get Entry**
+   - GET `/api/v1/entries/{id}`
+   - Response: entry with metadata and insights
+
+4. **Update Entry**
+   - PUT `/api/v1/entries/{id}`
+   - Request: title, content, categoryIds
+   - Response: updated entry
+
+5. **Delete Entry**
+   - DELETE `/api/v1/entries/{id}`
+   - Response: success message
+
+### Category Endpoints
+
+1. **List Categories**
+   - GET `/api/v1/categories`
+   - Response: user's categories
+
+2. **Create Category**
+   - POST `/api/v1/categories`
+   - Request: name, color
+   - Response: created category
+
+3. **Update Category**
+   - PUT `/api/v1/categories/{id}`
+   - Request: name, color
+   - Response: updated category
+
+4. **Delete Category**
+   - DELETE `/api/v1/categories/{id}`
+   - Response: success message
+
+### AI Feature Endpoints
+
+1. **Text Analysis**
+   - POST `/api/v1/analyze/text`
+   - Request: content
+   - Response: suggestions, auto-completions, writing style analysis
+
+2. **Generate Entry Insights**
+   - POST `/api/v1/entries/{entryId}/insights`
+   - Response: generated insights
+
+3. **Get Entry Insights**
+   - GET `/api/v1/entries/{entryId}/insights`
+   - Response: entry's insights
+
+4. **List User Insights**
+   - GET `/api/v1/insights`
+   - Query params: type, timeRange
+   - Response: filtered insights
+
+5. **Delete Insight**
+   - DELETE `/api/v1/insights/{insightId}`
+   - Response: success message
+
+### Analytics Endpoints
+
+1. **Get User Analytics**
+   - GET `/api/v1/analytics`
+   - Response: writing statistics, trends, and patterns
+
+## Security Considerations
+
+1. **Authentication**
+   - JWT-based authentication
+   - Secure password hashing
+   - Session management
    - Rate limiting
-   - Input validation using Zod
-   - Standardized error handling
 
-2. **Data Access**
-   - User-scoped data access
-   - Session-based authorization
-   - Secure data transmission with HTTPS
-   - Data encryption at rest
-
-## UI Components
-
-### Profile Management
-
-1. **PersonalInfoCard**
-   - User name input
-   - Bio text input
-   - Location input
-   - Form validation
-   - Real-time updates
-
-2. **PreferencesCard**
-   - Theme selection (Light/Dark/System)
-   - Email notification toggle
-   - Preference persistence
-   - Immediate application
-
-3. **AccountCard**
-   - Email display
-   - Password management
-   - Account deletion option
-   - Security settings
-
-### State Management
-
-1. **Profile Hook (useProfile)**
-   - Profile data fetching
-   - Form state management
-   - Error handling
-   - Loading states
-   - Save functionality
-
-2. **Form Validation**
+2. **Data Protection**
    - Input validation
-   - Error messages
-   - Field requirements
-   - Submit validation
+   - SQL injection prevention
+   - XSS protection
+   - CSRF protection
 
-### Feedback System
+3. **API Security**
+   - HTTPS enforcement
+   - Request validation
+   - Error handling
+   - Rate limiting
 
-1. **Toast Notifications**
-   - Success messages
-   - Error alerts
-   - Warning notifications
-   - Info updates
+## Performance Optimization
 
-2. **Loading States**
-   - Skeleton loaders
-   - Progress indicators
-   - Disabled states
-   - Loading spinners
-
-3. **Error Handling**
-   - Form validation errors
-   - API error messages
-   - Network error handling
-   - Fallback UI states
-
-## Analytics Dashboard
-
-### Components
-
-1. **Summary Cards**
-   - Total entries
-   - Word count
-   - Writing streak
-   - Average words per day
-
-2. **Sentiment Analysis**
-   - Overall sentiment score
-   - Mood distribution
-   - Sentiment trends
-   - Magnitude visualization
-
-3. **Category Distribution**
-   - Category breakdown
-   - Entry counts
-   - Visual representation
-   - Filtering options
-
-4. **Monthly Activity**
-   - Entry frequency
-   - Word count trends
-   - Activity patterns
-   - Time-based analysis
-
-### Data Processing
-
-1. **Aggregation**
-   - Time-based grouping
-   - Category aggregation
-   - Sentiment averaging
-   - Trend calculation
-
-2. **Visualization**
-   - Chart components
-   - Interactive graphs
-   - Responsive design
-   - Data filtering
-
-3. **Performance**
-   - Cached calculations
-   - Lazy loading
-   - Progressive enhancement
-   - Optimized queries
-
-## Scaling Considerations
-
-### Database Scaling
-
-1. **Query Optimization**
-   - Indexed fields
-   - Efficient joins
-   - Query caching
+1. **Database**
+   - Indexed queries
    - Connection pooling
+   - Query optimization
+   - Caching strategies
 
-2. **Data Partitioning**
-   - User-based sharding
-   - Time-based partitioning
-   - Category-based separation
-   - Archive strategy
+2. **API**
+   - Response compression
+   - Caching headers
+   - Pagination
+   - Rate limiting
 
-3. **Caching Strategy**
-   - Redis integration
-   - Query result caching
-   - Session caching
-   - Static asset caching
+3. **Frontend**
+   - Code splitting
+   - Image optimization
+   - Lazy loading
+   - Client-side caching
 
-### Application Scaling
+## Monitoring and Logging
 
-1. **Load Balancing**
+1. **Application Monitoring**
+   - Error tracking
+   - Performance metrics
+   - User analytics
+   - System health
+
+2. **Logging**
+   - Error logging
+   - Access logging
+   - Audit logging
+   - Performance logging
+
+## Deployment Strategy
+
+1. **Infrastructure**
+   - Fly.io deployment
+   - Database hosting
+   - CDN integration
+   - SSL/TLS configuration
+
+2. **CI/CD**
+   - Automated testing
+   - Build process
+   - Deployment pipeline
+   - Rollback procedures
+
+3. **Scaling**
    - Horizontal scaling
-   - Request distribution
-   - Health checks
-   - Auto-scaling
+   - Load balancing
+   - Database scaling
+   - Cache distribution
 
-2. **Resource Management**
-   - Memory optimization
-   - CPU utilization
-   - Connection limits
-   - Timeout handling
+## Future Considerations
 
-3. **Performance Monitoring**
-   - Response times
-   - Error rates
-   - Resource usage
-   - User metrics
+1. **Feature Expansion**
+   - Mobile application
+   - Offline support
+   - Rich text editor
+   - Media attachments
 
-## Setup Guide
+2. **AI Enhancements**
+   - Advanced sentiment analysis
+   - Personalized recommendations
+   - Writing style improvement
+   - Content summarization
 
-### Prerequisites
+3. **Integration**
+   - Calendar integration
+   - Social sharing
+   - Export/Import
+   - Third-party services
 
-1. **Development Environment**
-   - Node.js 18+
-   - PostgreSQL 14+
-   - npm or yarn
-   - Git
+## Development Guidelines
 
-2. **Environment Variables**
-   ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/shamiri"
-   NEXTAUTH_URL="http://localhost:3000"
-   NEXTAUTH_SECRET="your-secret-key"
-   HUGGINGFACE_API_KEY="your-api-key"
-   ```
+1. **Code Style**
+   - TypeScript strict mode
+   - ESLint configuration
+   - Prettier formatting
+   - Git hooks
 
-3. **Dependencies**
-   ```bash
-   npm install
-   ```
+2. **Testing**
+   - Unit tests
+   - Integration tests
+   - E2E tests
+   - Performance tests
 
-### Database Setup
-
-1. **Schema Migration**
-   ```bash
-   npx prisma migrate dev
-   ```
-
-2. **Seed Data**
-   ```bash
-   npx prisma db seed
-   ```
-
-### Development Server
-
-1. **Start Development Server**
-   ```bash
-   npm run dev
-   ```
-
-2. **Run Tests**
-   ```bash
-   npm test
-   ```
-
-3. **Build for Production**
-   ```bash
-   npm run build
-   ```
-
-### Deployment
-
-1. **Fly.io Setup**
-   ```bash
-   flyctl launch
-   flyctl secrets set DATABASE_URL="your-database-url"
-   flyctl deploy
-   ```
-
-2. **Environment Configuration**
-   - Set production environment variables
-   - Configure database connection
-   - Set up monitoring
-   - Enable logging
-
-## Documentation References
-
-1. **API Documentation**
-   - [API.md](./API.md)
-   - [AUTH.md](./AUTH.md)
-
-2. **Database Documentation**
-   - [DATABASE.md](./DATABASE.md)
-   - [DATABASE_DIAGRAM.md](./DATABASE_DIAGRAM.md)
-
-3. **Component Documentation**
-   - [COMPONENTS.md](./COMPONENTS.md)
-
-4. **External Services**
-   - [Natural.js Documentation](https://github.com/NaturalNode/natural)
-   - [Hugging Face API Documentation](https://huggingface.co/docs/inference-endpoints/index)
-   - [Next.js Documentation](https://nextjs.org/docs)
-   - [Prisma Documentation](https://www.prisma.io/docs) 
+3. **Documentation**
+   - API documentation
+   - Code documentation
+   - Deployment guides
+   - User guides 
