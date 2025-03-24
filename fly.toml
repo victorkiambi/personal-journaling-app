@@ -3,14 +3,13 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'shamiri-billowing-dew-7238'
+app = 'shamiri-journal'
 primary_region = 'jnb'
 
 [build]
 
 [deploy]
-  release_command = 'npx prisma migrate deploy'
-  seed_command = 'ts-node prisma/seed.ts'
+  release_command = 'npx prisma migrate deploy && npx prisma db seed'
 
 [http_service]
   internal_port = 3000

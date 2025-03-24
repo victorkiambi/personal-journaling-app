@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AppError } from './errors';
 
 // Base schemas
 export const baseIdSchema = z.string().cuid();
@@ -82,10 +83,9 @@ export const analyticsQuerySchema = z.object({
 });
 
 // Validation error handling
-export class ValidationError extends Error {
+export class ValidationError extends AppError {
   constructor(message: string, public field?: string) {
-    super(message);
-    this.name = 'ValidationError';
+    super(message, 'VALIDATION_ERROR', 400);
   }
 }
 

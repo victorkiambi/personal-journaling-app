@@ -11,30 +11,30 @@ The application is deployed and accessible at: [https://shamiri-journal.fly.dev]
 1. Visit [https://shamiri-journal.fly.dev](https://shamiri-journal.fly.dev)
 2. Create a new account or use the demo credentials:
    - Email: john@example.com
-   - Password: Password123! (for testing purposes only)
+   - Password: password123 (for testing purposes only)
 3. Start journaling! The application features:
-   - Real-time writing suggestions
-   - Grammar corrections
-   - Style analysis
-   - Auto-completions
-   - Sentiment analysis
-   - Personal insights
+   - Sentiment analysis of your entries
+   - Writing insights and analytics
+   - Personal journaling experience
 
 ## Features
 
 - User authentication with NextAuth.js
 - Create, read, update, and delete journal entries
 - Categorize entries with a flexible tagging system
-- Rich text editing
+- Clean and intuitive text editor
 - Analytics and insights about your journaling habits
+- Sentiment analysis using Natural.js
+- AI-powered insights using Hugging Face
 - Responsive design for all devices
+- Dark/Light mode support
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS, shadcn/ui
 - **Backend**: Next.js API Routes
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js with OAuth providers
+- **Authentication**: NextAuth.js with email authentication
 - **State Management**: React Context + Hooks
 - **Styling**: Tailwind CSS
 - **Development**: Docker for database
@@ -65,6 +65,9 @@ The application is deployed and accessible at: [https://shamiri-journal.fly.dev]
 
    # Run database migrations
    npx prisma migrate dev
+
+   # Seed the database with initial data
+   npx prisma db seed
    ```
 
 4. Start the development server:
@@ -101,8 +104,8 @@ The application is deployed on [fly.io](https://fly.io). To deploy your own inst
 4. Set up environment variables:
    ```bash
    fly secrets set DATABASE_URL="your-production-database-url"
-   fly secrets set JWT_SECRET="your-production-jwt-secret"
-   # Add other necessary environment variables
+   fly secrets set NEXTAUTH_SECRET="your-production-nextauth-secret"
+   fly secrets set HUGGINGFACE_API_KEY="your-huggingface-api-key"
    ```
 
 5. Access your deployed application at `https://your-app-name.fly.dev`
@@ -155,7 +158,9 @@ HUGGINGFACE_API_KEY="your-huggingface-api-key"
 - `npm run build` - Build the production application
 - `npm start` - Start the production server
 - `npm run lint` - Run ESLint
-- `npm run test` - Run tests (when implemented)
+- `npm test` - Run tests
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Generate test coverage report
 
 ## Contributing
 

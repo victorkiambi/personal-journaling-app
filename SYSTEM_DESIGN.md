@@ -20,8 +20,10 @@ Shamiri Journal is a modern web application for personal journaling with sentime
 - **Frontend**: Next.js 14, React, TypeScript, shadcn/ui, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js with OAuth providers and email authentication
-- **Analytics**: Custom sentiment analysis with Hugging Face models
+- **Authentication**: NextAuth.js with email authentication
+- **Analytics**: 
+  - Sentiment Analysis: Natural.js with AFINN lexicon
+  - AI Insights: Hugging Face Transformers
 - **State Management**: React Hooks + Context
 - **Testing**: Jest, React Testing Library
 - **Deployment**: Fly.io
@@ -40,9 +42,10 @@ graph TD
     G --> I[PostgreSQL]
     H --> J[Sentiment Analysis]
     H --> K[Analytics]
-    D --> L[Profile Management]
-    L --> M[User Settings]
-    L --> N[Preferences]
+    H --> L[Hugging Face]
+    D --> M[Profile Management]
+    M --> N[User Settings]
+    M --> O[Preferences]
 ```
 
 ### Component Architecture
@@ -118,7 +121,10 @@ erDiagram
         string entryId FK
         int wordCount
         int readingTime
-        json sentiment
+        float sentimentScore
+        float sentimentMagnitude
+        string mood
+        json aiInsights
         datetime createdAt
         datetime updatedAt
     }
@@ -152,6 +158,75 @@ erDiagram
    - Attributes: title, content, userId, createdAt, updatedAt
    - Relationships: many-to-many with Category, one-to-one with EntryMetadata
 
+5. **EntryMetadata**
+   - Primary key: id (UUID)
+   - Attributes: entryId, wordCount, readingTime, sentimentScore, sentimentMagnitude, mood, aiInsights
+   - Relationships: one-to-one with JournalEntry
+
+## Sentiment Analysis & AI Features
+
+### Natural.js Sentiment Analysis
+
+1. **Implementation**
+   - Uses Natural.js library with AFINN lexicon
+   - Tokenization using WordTokenizer
+   - Sentiment scoring with SentimentAnalyzer
+   - Normalized scores (-1 to 1 range)
+   - Mood classification based on score thresholds
+
+2. **Features**
+   - Word-level sentiment analysis
+   - Sentence-level analysis
+   - Magnitude calculation for sentiment strength
+   - Mood categorization (very_positive, positive, neutral, negative, very_negative)
+   - Performance optimized for real-time analysis
+
+3. **Processing Flow**
+   ```mermaid
+   graph LR
+       A[Entry Content] --> B[Tokenization]
+       B --> C[Sentiment Analysis]
+       C --> D[Score Normalization]
+       D --> E[Mood Classification]
+       E --> F[Metadata Storage]
+   ```
+
+### Hugging Face Integration
+
+1. **Models Used**
+   - Text Classification for topic detection
+   - Zero-shot classification for content categorization
+   - Text generation for writing prompts
+
+2. **Features**
+   - Topic detection and classification
+   - Content summarization
+   - Writing style analysis
+   - Theme extraction
+   - Pattern recognition
+
+3. **Implementation**
+   - REST API integration with Hugging Face Inference API
+   - Rate limiting and error handling
+   - Caching of model responses
+   - Batch processing for multiple entries
+
+4. **Processing Flow**
+   ```mermaid
+   graph LR
+       A[Entry Content] --> B[API Request]
+       B --> C[Model Processing]
+       C --> D[Response Parsing]
+       D --> E[Insight Generation]
+       E --> F[Metadata Storage]
+   ```
+
+5. **Security**
+   - API key management via environment variables
+   - Request validation
+   - Response sanitization
+   - Error handling and fallbacks
+
 ## Security
 
 ### Authentication Flow
@@ -167,12 +242,9 @@ erDiagram
    - Secure cookie-based session storage
    - Automatic session refresh
    - Session persistence across page reloads
-   - OAuth state validation
 
 3. **Authentication Methods**
    - Email/Password authentication
-   - OAuth providers (Google, GitHub)
-   - Email verification
    - Secure password reset flow
    - Rate limiting on authentication attempts
 
@@ -189,25 +261,6 @@ erDiagram
    - Session-based authorization
    - Secure data transmission with HTTPS
    - Data encryption at rest
-
-### OAuth Integration
-
-1. **Supported Providers**
-   - Google OAuth 2.0
-   - GitHub OAuth
-   - Extensible provider system
-
-2. **Provider Configuration**
-   - Secure client ID and secret management
-   - Callback URL handling
-   - Scope management
-   - Profile data mapping
-
-3. **Session Security**
-   - Encrypted session tokens
-   - Secure cookie handling
-   - Cross-site request forgery protection
-   - Token rotation
 
 ## UI Components
 
@@ -251,248 +304,194 @@ erDiagram
 
 1. **Toast Notifications**
    - Success messages
-   - Error notifications
-   - Loading indicators
-   - Action confirmations
+   - Error alerts
+   - Warning notifications
+   - Info updates
 
 2. **Loading States**
    - Skeleton loaders
    - Progress indicators
    - Disabled states
-   - Transition animations
+   - Loading spinners
 
-## Future Considerations
+3. **Error Handling**
+   - Form validation errors
+   - API error messages
+   - Network error handling
+   - Fallback UI states
 
-### Technical Improvements
+## Analytics Dashboard
 
-1. **Performance**
-   - Component lazy loading
-   - Image optimization
-   - API response caching
-   - Bundle size optimization
+### Components
 
-2. **Accessibility**
-   - ARIA labels
-   - Keyboard navigation
-   - Screen reader support
-   - Color contrast
+1. **Summary Cards**
+   - Total entries
+   - Word count
+   - Writing streak
+   - Average words per day
 
-3. **Testing**
-   - Unit tests for hooks
-   - Component integration tests
-   - E2E testing
-   - Performance testing
+2. **Sentiment Analysis**
+   - Overall sentiment score
+   - Mood distribution
+   - Sentiment trends
+   - Magnitude visualization
 
-### Feature Roadmap
+3. **Category Distribution**
+   - Category breakdown
+   - Entry counts
+   - Visual representation
+   - Filtering options
 
-1. **Profile Enhancements**
-   - Profile picture upload
-   - Social media integration
-   - Activity history
-   - Custom themes
+4. **Monthly Activity**
+   - Entry frequency
+   - Word count trends
+   - Activity patterns
+   - Time-based analysis
 
-2. **Security Updates**
-   - Two-factor authentication
-   - Session management
-   - Security audit logging
-   - Privacy controls
+### Data Processing
 
-3. **UI/UX Improvements**
-   - Mobile responsiveness
-   - Gesture controls
-   - Dark mode refinements
-1. **Database Scaling**
-   - Indexed queries
+1. **Aggregation**
+   - Time-based grouping
+   - Category aggregation
+   - Sentiment averaging
+   - Trend calculation
+
+2. **Visualization**
+   - Chart components
+   - Interactive graphs
+   - Responsive design
+   - Data filtering
+
+3. **Performance**
+   - Cached calculations
+   - Lazy loading
+   - Progressive enhancement
+   - Optimized queries
+
+## Scaling Considerations
+
+### Database Scaling
+
+1. **Query Optimization**
+   - Indexed fields
+   - Efficient joins
+   - Query caching
    - Connection pooling
-   - Query optimization
-   - Caching strategy
 
-2. **Application Scaling**
-   - Serverless functions
-   - Edge caching
-   - Static asset optimization
-   - Load balancing
+2. **Data Partitioning**
+   - User-based sharding
+   - Time-based partitioning
+   - Category-based separation
+   - Archive strategy
 
-### Scaling to 1M+ Users
+3. **Caching Strategy**
+   - Redis integration
+   - Query result caching
+   - Session caching
+   - Static asset caching
 
-1. **Infrastructure**
-   - Distributed PostgreSQL cluster
-   - Kubernetes deployment
-   - CDN integration
-   - Monitoring and logging
+### Application Scaling
 
-2. **Performance Optimization**
-   - Database sharding
-   - Caching layers
-   - Query optimization
-   - Asset optimization
+1. **Load Balancing**
+   - Horizontal scaling
+   - Request distribution
+   - Health checks
+   - Auto-scaling
 
-## Monitoring and Logging
+2. **Resource Management**
+   - Memory optimization
+   - CPU utilization
+   - Connection limits
+   - Timeout handling
 
-1. **Application Monitoring**
-   - Error tracking
-   - Performance metrics
-   - User analytics
-   - System health
-
-2. **Logging Strategy**
-   - Structured logging
-   - Log aggregation
-   - Log retention
-   - Log analysis
-
-## Future Considerations
-
-### Technical Debt
-
-1. **Code Organization**
-   - Component reusability
-   - Type definitions
-   - Test coverage
-   - Documentation
-
-2. **Performance**
-   - Bundle optimization
-   - Image optimization
-   - API response time
-   - Database queries
-
-### Feature Roadmap
-
-1. **Core Features**
-   - Rich text editor
-   - Image upload
-   - Export functionality
-   - Search improvements
-
-2. **Advanced Features**
-   - Real-time collaboration
-   - Mobile application
-   - Offline support
-   - Advanced analytics
-
-3. **AI/ML Features**
-   - Smart categorization
-   - Content suggestions
-   - Writing prompts
-   - Pattern recognition
-
-## Resources
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Prisma Documentation](https://www.prisma.io/docs)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs)
-- [NextAuth.js Documentation](https://next-auth.js.org)
-- [shadcn/ui Documentation](https://ui.shadcn.com)
+3. **Performance Monitoring**
+   - Response times
+   - Error rates
+   - Resource usage
+   - User metrics
 
 ## Setup Guide
 
 ### Prerequisites
-- Node.js 18.x or later
-- PostgreSQL 14.x or later
-- npm or yarn
-- Git
 
-### Environment Variables
-Create a `.env` file in the root directory with the following variables:
-```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/shamiri"
+1. **Development Environment**
+   - Node.js 18+
+   - PostgreSQL 14+
+   - npm or yarn
+   - Git
 
-# NextAuth
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key"
+2. **Environment Variables**
+   ```env
+   DATABASE_URL="postgresql://user:password@localhost:5432/shamiri"
+   NEXTAUTH_URL="http://localhost:3000"
+   NEXTAUTH_SECRET="your-secret-key"
+   HUGGINGFACE_API_KEY="your-api-key"
+   ```
 
-# Google Cloud (for sentiment analysis)
-GOOGLE_CLOUD_PROJECT="your-project-id"
-GOOGLE_APPLICATION_CREDENTIALS="path/to/credentials.json"
-```
+3. **Dependencies**
+   ```bash
+   npm install
+   ```
 
-### Installation Steps
+### Database Setup
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/shamiri.git
-cd shamiri
-```
+1. **Schema Migration**
+   ```bash
+   npx prisma migrate dev
+   ```
 
-2. Install dependencies:
-```bash
-npm install
-# or
-yarn install
-```
+2. **Seed Data**
+   ```bash
+   npx prisma db seed
+   ```
 
-3. Set up the database:
-```bash
-# Generate Prisma client
-npm run postinstall
+### Development Server
 
-# Run migrations
-npx prisma migrate dev
+1. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
 
-# Seed the database (optional)
-npx prisma db seed
-```
+2. **Run Tests**
+   ```bash
+   npm test
+   ```
 
-4. Start the development server:
-```bash
-npm run dev
-# or
-yarn dev
-```
+3. **Build for Production**
+   ```bash
+   npm run build
+   ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+### Deployment
 
-### Testing
-```bash
-# Run tests
-npm test
+1. **Fly.io Setup**
+   ```bash
+   flyctl launch
+   flyctl secrets set DATABASE_URL="your-database-url"
+   flyctl deploy
+   ```
 
-# Run tests in watch mode
-npm run test:watch
-
-# Generate test coverage report
-npm run test:coverage
-```
-
-### Production Deployment
-1. Build the application:
-```bash
-npm run build
-```
-
-2. Start the production server:
-```bash
-npm start
-```
+2. **Environment Configuration**
+   - Set production environment variables
+   - Configure database connection
+   - Set up monitoring
+   - Enable logging
 
 ## Documentation References
 
-### API Documentation
-- [API Routes](./src/app/api/README.md)
-- [Swagger Documentation](./src/app/api/swagger.json)
+1. **API Documentation**
+   - [API.md](./API.md)
+   - [AUTH.md](./AUTH.md)
 
-### Database Documentation
-- [Database Schema](./DATABASE.md)
-- [Database Diagram](./DATABASE_DIAGRAM.md)
+2. **Database Documentation**
+   - [DATABASE.md](./DATABASE.md)
+   - [DATABASE_DIAGRAM.md](./DATABASE_DIAGRAM.md)
 
-### Authentication Documentation
-- [Auth Implementation](./AUTH.md)
-- [NextAuth Configuration](./src/lib/auth.ts)
+3. **Component Documentation**
+   - [COMPONENTS.md](./COMPONENTS.md)
 
-### Component Documentation
-- [UI Components](./src/components/README.md)
-- [Layout Components](./src/components/layout/README.md)
-
-### Testing Documentation
-- [Test Setup](./jest.setup.js)
-- [Test Utilities](./src/test/README.md)
-
-## Contributing
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+4. **External Services**
+   - [Natural.js Documentation](https://github.com/NaturalNode/natural)
+   - [Hugging Face API Documentation](https://huggingface.co/docs/inference-endpoints/index)
+   - [Next.js Documentation](https://nextjs.org/docs)
+   - [Prisma Documentation](https://www.prisma.io/docs) 

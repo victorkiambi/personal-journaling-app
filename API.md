@@ -6,7 +6,7 @@ https://shamiri-journal.fly.dev/api/v1
 ```
 
 ## Authentication
-All API endpoints require authentication using NextAuth.js sessions. The application automatically handles authentication via cookies set by NextAuth.js.
+All API endpoints require authentication using NextAuth.js sessions. The application uses email/password authentication with NextAuth.js Credentials provider.
 
 Protected routes are secured using NextAuth.js middleware. When accessing the API programmatically, you'll need to include the session cookie.
 
@@ -17,7 +17,6 @@ The following routes are automatically managed by NextAuth.js:
 
 ```
 /api/auth/signin
-/api/auth/callback
 /api/auth/signout
 /api/auth/session
 /api/auth/csrf
@@ -33,8 +32,7 @@ Response:
 {
   "user": {
     "name": "John Doe",
-    "email": "user@example.com",
-    "image": "https://example.com/profile.jpg"
+    "email": "user@example.com"
   },
   "expires": "2023-04-19T12:00:00.000Z"
 }
@@ -117,7 +115,6 @@ Response:
 ### Create Entry
 ```http
 POST /entries
-Authorization: Bearer <token>
 Content-Type: application/json
 
 {
@@ -156,7 +153,6 @@ Response:
 ### Get Entries (with pagination and filters)
 ```http
 GET /entries?page=1&pageSize=10&categoryId=category-uuid&startDate=2024-03-18&endDate=2024-03-19&search=keyword
-Authorization: Bearer <token>
 ```
 
 Response:
@@ -188,7 +184,6 @@ Response:
 ### Get Single Entry
 ```http
 GET /entries/{entry-id}
-Authorization: Bearer <token>
 ```
 
 Response:
@@ -213,7 +208,6 @@ Response:
 ### Update Entry
 ```http
 PUT /entries/{entry-id}
-Authorization: Bearer <token>
 Content-Type: application/json
 
 {
@@ -243,7 +237,6 @@ Response:
 ### Delete Entry
 ```http
 DELETE /entries/{entry-id}
-Authorization: Bearer <token>
 ```
 
 Response:
@@ -251,6 +244,137 @@ Response:
 {
   "success": true,
   "message": "Entry deleted successfully"
+}
+```
+
+## Categories
+
+### Create Category
+```http
+POST /categories
+Content-Type: application/json
+
+{
+  "name": "Personal",
+  "color": "#FF5733"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "category-uuid",
+    "name": "Personal",
+    "color": "#FF5733"
+  }
+}
+```
+
+### Get Categories
+```http
+GET /categories
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "category-uuid",
+      "name": "Personal",
+      "color": "#FF5733"
+    }
+  ]
+}
+```
+
+### Update Category
+```http
+PUT /categories/{category-id}
+Content-Type: application/json
+
+{
+  "name": "Updated Category",
+  "color": "#33FF57"
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "id": "category-uuid",
+    "name": "Updated Category",
+    "color": "#33FF57"
+  }
+}
+```
+
+### Delete Category
+```http
+DELETE /categories/{category-id}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Category deleted successfully"
+}
+```
+
+## Analytics
+
+### Get Entry Analytics
+```http
+GET /entries/{entry-id}/analytics
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "wordCount": 150,
+    "readingTime": 1,
+    "sentiment": {
+      "score": 0.8,
+      "magnitude": 0.5
+    },
+    "readability": 85.5,
+    "complexity": 12.3
+  }
+}
+```
+
+### Get User Analytics
+```http
+GET /analytics
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "totalEntries": 100,
+    "totalWords": 15000,
+    "averageWordsPerEntry": 150,
+    "writingStreak": 5,
+    "categoryDistribution": {
+      "Personal": 60,
+      "Work": 40
+    },
+    "sentimentDistribution": {
+      "positive": 70,
+      "neutral": 20,
+      "negative": 10
+    }
+  }
 }
 ```
 
@@ -271,31 +395,34 @@ Content-Type: application/json
 Response:
 ```json
 {
-  "suggestions": [
-    {
-      "text": "Text content to analyze",
-      "confidence": 0.9,
-      "category": "grammar",
-      "replacement": "Text content to analyze.",
-      "explanation": "Grammar improvement suggestion",
-      "context": "Text content to analyze"
-    },
-    {
-      "text": "Text content to analyze for suggestions and improvements.",
-      "confidence": 0.8,
-      "category": "style",
-      "explanation": "Your writing could be more readable. Try using simpler words and shorter sentences."
-    }
-  ],
-  "autoCompletions": [
-    "with additional details and context."
-  ],
-  "writingStyle": {
-    "readability": 75,
-    "complexity": 5,
+  "success": true,
+  "data": {
     "suggestions": [
-      "Consider adding more descriptive language to enhance clarity."
-    ]
+      {
+        "text": "Text content to analyze",
+        "confidence": 0.9,
+        "category": "grammar",
+        "replacement": "Text content to analyze.",
+        "explanation": "Grammar improvement suggestion",
+        "context": "Text content to analyze"
+      },
+      {
+        "text": "Text content to analyze for suggestions and improvements.",
+        "confidence": 0.8,
+        "category": "style",
+        "explanation": "Your writing could be more readable. Try using simpler words and shorter sentences."
+      }
+    ],
+    "autoCompletions": [
+      "with additional details and context."
+    ],
+    "writingStyle": {
+      "readability": 75,
+      "complexity": 5,
+      "suggestions": [
+        "Consider adding more descriptive language to enhance clarity."
+      ]
+    }
   }
 }
 ```
@@ -407,187 +534,52 @@ Response:
 }
 ```
 
-## Categories
+## Error Responses
 
-### Create Category
-```http
-POST /categories
-Authorization: Bearer <token>
-Content-Type: application/json
+All endpoints may return the following error responses:
 
-{
-  "name": "Personal",
-  "color": "#FF5733"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "category-uuid",
-    "name": "Personal",
-    "color": "#FF5733",
-    "createdAt": "2024-03-19T10:00:00Z"
-  }
-}
-```
-
-### Get Categories
-```http
-GET /categories
-Authorization: Bearer <token>
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "category-uuid",
-      "name": "Personal",
-      "color": "#FF5733",
-      "createdAt": "2024-03-19T10:00:00Z",
-      "_count": {
-        "entries": 5
-      }
-    }
-  ]
-}
-```
-
-### Get Single Category
-```http
-GET /categories/{category-id}
-Authorization: Bearer <token>
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "category-uuid",
-    "name": "Personal",
-    "color": "#FF5733",
-    "createdAt": "2024-03-19T10:00:00Z",
-    "entries": [
-      {
-        "id": "entry-uuid",
-        "title": "My Entry",
-        "createdAt": "2024-03-19T10:00:00Z"
-      }
-    ]
-  }
-}
-```
-
-### Update Category
-```http
-PUT /categories/{category-id}
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "Updated Name",
-  "color": "#33FF57"
-}
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "id": "category-uuid",
-    "name": "Updated Name",
-    "color": "#33FF57",
-    "updatedAt": "2024-03-19T10:00:00Z"
-  }
-}
-```
-
-### Delete Category
-```http
-DELETE /categories/{category-id}
-Authorization: Bearer <token>
-```
-
-Response:
-```json
-{
-  "success": true,
-  "message": "Category deleted successfully"
-}
-```
-
-## Analytics
-
-### Get User Analytics
-```http
-GET /analytics
-Authorization: Bearer <token>
-```
-
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "totalEntries": 100,
-    "totalWords": 15000,
-    "averageWordsPerEntry": 150,
-    "entriesByCategory": [
-      {
-        "category": "Personal",
-        "count": 50
-      },
-      {
-        "category": "Work",
-        "count": 30
-      }
-    ],
-    "entriesByMonth": [
-      {
-        "month": "2024-03",
-        "count": 20
-      }
-    ],
-    "writingStreak": {
-      "currentStreak": 5,
-      "longestStreak": 10
-    }
-  }
-}
-```
-
-## Response Format
-All API endpoints follow a consistent response format:
-
-Success Response:
-```json
-{
-  "success": true,
-  "data": { ... }
-}
-```
-
-Error Response:
+### 401 Unauthorized
 ```json
 {
   "success": false,
-  "error": "Error message"
+  "error": "Unauthorized"
 }
 ```
 
-## Error Codes
-- 400: Bad Request (invalid input)
-- 401: Unauthorized (invalid or missing token)
-- 403: Forbidden (insufficient permissions)
-- 404: Not Found
-- 500: Internal Server Error
+### 403 Forbidden
+```json
+{
+  "success": false,
+  "error": "Forbidden"
+}
+```
+
+### 404 Not Found
+```json
+{
+  "success": false,
+  "error": "Resource not found"
+}
+```
+
+### 422 Validation Error
+```json
+{
+  "success": false,
+  "error": "Validation failed",
+  "details": {
+    "field": ["error message"]
+  }
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "success": false,
+  "error": "Internal server error"
+}
+```
 
 ## Rate Limiting
 Currently, there are no rate limits implemented. However, it's recommended to implement reasonable request throttling in the client application to prevent overwhelming the server.
@@ -638,41 +630,6 @@ Currently, there are no rate limits implemented. However, it's recommended to im
   website: string;
   createdAt: Date;
   updatedAt: Date;
-}
-```
-
-### AI Insight
-```typescript
-{
-  id: string;
-  entryId: string;
-  userId: string;
-  type: 'theme' | 'pattern' | 'recommendation';
-  content: string;
-  confidence: number;
-  createdAt: Date;
-  updatedAt: Date;
-  entry?: JournalEntry;
-}
-```
-
-### Text Analysis
-```typescript
-{
-  suggestions: {
-    text: string;
-    confidence: number;
-    category: 'grammar' | 'style' | 'completion';
-    replacement?: string;
-    explanation?: string;
-    context?: string;
-  }[];
-  autoCompletions: string[];
-  writingStyle: {
-    readability: number;
-    complexity: number;
-    suggestions: string[];
-  };
 }
 ```
 

@@ -1,12 +1,14 @@
 # Database Schema Documentation
 
 ## Overview
-The Shamiri Journal application uses PostgreSQL as its database with Prisma ORM. The schema is designed to support NextAuth.js authentication, journal entries with AI-powered insights, categories, user profiles, and preferences with a focus on type safety and data integrity.
+The Shamiri Journal application uses PostgreSQL as its primary database, with Prisma ORM for database operations. The database schema is designed to support journal entries, user management, and AI-powered features.
 
-## Database Connection
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/shamiri_journal?schema=public"
-```
+## Connection Details
+- Host: localhost
+- Port: 5432
+- Database: shamiri_journal
+- User: postgres
+- Password: postgres
 
 ## Models
 
@@ -17,11 +19,9 @@ model User {
   id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
-  emailVerified DateTime?
-  image         String?
+  password      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  accounts      Account[]
   sessions      Session[]
   profile       Profile?
   settings      Settings?
@@ -33,38 +33,11 @@ model User {
 ```
 
 **Relationships:**
-- One-to-many with `Account` (OAuth accounts)
 - One-to-many with `Session` (NextAuth.js sessions)
 - One-to-one with `Profile` (user profile)
 - One-to-one with `Settings` (user preferences)
 - One-to-many with `Category` (user's categories)
 - One-to-many with `JournalEntry` (user's journal entries)
-
-### Account
-OAuth account connections for NextAuth.js.
-```prisma
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-```
-
-**Relationships:**
-- Many-to-one with `User`
 
 ### Session
 NextAuth.js session management.
@@ -184,20 +157,18 @@ model JournalEntry {
 
 ### EntryMetadata
 Enhanced metadata for journal entries with AI analysis.
-```prisma
-model EntryMetadata {
-  id            String       @id @default(cuid())
-  entryId       String       @unique
-  wordCount     Int
-  readingTime   Int
-  sentiment     Json?
-  readability   Float?       // Flesch Reading Ease score
-  complexity    Float?       // Text complexity score
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  entry         JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-
-  @@index([entryId])
+```typescript
+{
+  id: string;              // UUID
+  entryId: string;         // Foreign key to JournalEntry
+  wordCount: number;
+  readingTime: number;
+  sentimentScore: number;  // -1 to 1
+  sentimentMagnitude: number;
+  mood: string;           // 'very_positive' | 'positive' | 'neutral' | 'negative' | 'very_negative'
+  readability: number;    // 0-100
+  complexity: number;     // Average words per sentence
+  entry: JournalEntry;
 }
 ```
 
@@ -207,24 +178,24 @@ model EntryMetadata {
 
 ### AIInsight
 AI-generated insights for journal entries.
-```prisma
-model AIInsight {
-  id          String       @id @default(cuid())
-  entryId     String
-  type        String       // 'theme' | 'pattern' | 'recommendation'
-  content     String       @db.Text
-  confidence  Float
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-
-  @@index([entryId])
-  @@index([type])
+```typescript
+{
+  id: string;              // UUID
+  entryId: string;         // Foreign key to JournalEntry
+  userId: string;          // Foreign key to User
+  type: string;           // 'theme' | 'pattern' | 'recommendation'
+  content: string;
+  confidence: number;     // 0-1
+  createdAt: Date;
+  updatedAt: Date;
+  entry: JournalEntry;
+  user: User;
 }
 ```
 
 **Relationships:**
 - Many-to-one with `JournalEntry`
+- Many-to-one with `User`
 - Cascade deletion with JournalEntry
 
 ## Indexes and Performance
@@ -236,7 +207,6 @@ model AIInsight {
 - Category [userId, name] (unique)
 - EntryMetadata entryId (unique)
 - Session sessionToken (unique)
-- VerificationToken token (unique)
 
 ### Secondary Indexes
 - JournalEntry [userId, createdAt] for efficient listing
@@ -255,7 +225,6 @@ model AIInsight {
    - Cascades to Settings
    - Cascades to Categories
    - Cascades to JournalEntries
-   - Cascades to Accounts (NextAuth.js)
    - Cascades to Sessions (NextAuth.js)
 
 2. JournalEntry Deletion:

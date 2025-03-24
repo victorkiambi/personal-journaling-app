@@ -168,6 +168,18 @@ function MoodDistributionCard({ distribution }: { distribution: Record<string, n
 }
 
 export default function SentimentAnalysis({ sentiment }: SentimentAnalysisProps) {
+  if (!sentiment) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <div className="text-center text-muted-foreground">
+            No sentiment data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const { averageScore, moodDistribution } = sentiment;
 
   return (
