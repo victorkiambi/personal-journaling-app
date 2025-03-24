@@ -60,6 +60,96 @@ Shamiri Journal is a modern journaling application that combines traditional jou
 
 ## Database Schema
 
+### Database Diagram
+
+```mermaid
+erDiagram
+    User {
+        string id PK
+        string email
+        string password
+        string name
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Session {
+        string id PK
+        string userId FK
+        datetime expiresAt
+        datetime createdAt
+    }
+
+    Profile {
+        string id PK
+        string userId FK
+        string bio
+        string location
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Settings {
+        string id PK
+        string userId FK
+        string theme
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Category {
+        string id PK
+        string name
+        string color
+        string userId FK
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    JournalEntry {
+        string id PK
+        string title
+        string content
+        string userId FK
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    EntryMetadata {
+        string id PK
+        string entryId FK
+        int wordCount
+        int readingTime
+        float sentimentScore
+        float sentimentMagnitude
+        string mood
+        float readability
+        float complexity
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    AIInsight {
+        string id PK
+        string entryId FK
+        string userId FK
+        string type
+        string content
+        float confidence
+        datetime createdAt
+    }
+
+    User ||--o{ Session : has
+    User ||--|| Profile : has
+    User ||--|| Settings : has
+    User ||--o{ Category : creates
+    User ||--o{ JournalEntry : creates
+    User ||--o{ AIInsight : has
+    JournalEntry ||--|| EntryMetadata : has
+    JournalEntry ||--o{ Category : belongs_to
+    JournalEntry ||--o{ AIInsight : has
+```
+
 ### Core Models
 
 1. **User**
